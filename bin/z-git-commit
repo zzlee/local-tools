@@ -7,8 +7,9 @@ const os = require("os");
 // Load .env from the user's home directory
 require("dotenv").config({ path: path.join(os.homedir(), ".env") });
 
-// Load API key from environment variable
+// Load API key and model from environment variables
 const apiKey = process.env.GEMINI_API_KEY;
+const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 if (!apiKey) {
   console.error("Error: GEMINI_API_KEY is not set in your ~/.env file.");
@@ -17,7 +18,7 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash",
+  model: modelName,
   systemInstruction: "You are a helpful assistant that generates concise git commit messages based on git diffs. Provide only the commit message, nothing else. Use the Conventional Commits format (e.g., 'feat: ...', 'fix: ...', 'docs: ...'). Keep the first line under 50 characters."
 });
 

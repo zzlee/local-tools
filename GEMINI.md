@@ -8,7 +8,9 @@
 2. **Execution:** All scripts MUST include a `#!/usr/bin/env node` shebang and be marked as executable (`chmod +x`).
 3. **Environment Configuration:**
    - **DO NOT** use a local `.env` file within the project directory.
-   - **MANDATORY:** All secrets (like `GEMINI_API_KEY`) MUST be loaded from `~/.env` (the user's home directory).
+   - **MANDATORY:** All configuration MUST be loaded from `~/.env` (the user's home directory).
+   - **Required Secrets:** `GEMINI_API_KEY`.
+   - **Optional Settings:** `GEMINI_MODEL` (defaults to `gemini-2.0-flash`).
    - Use the pattern: `require("dotenv").config({ path: path.join(require("os").homedir(), ".env") });`
 4. **Dependencies:** Maintain a minimal footprint. Use `@google/generative-ai` for LLM interactions and `dotenv` for configuration.
 5. **Standard Formatting:** `z-git-commit` must strictly follow the Conventional Commits format with a 50-character limit for the subject line.
