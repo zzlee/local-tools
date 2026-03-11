@@ -17,7 +17,7 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash",
   systemInstruction: "You are a helpful assistant that generates concise git commit messages based on git diffs. Provide only the commit message, nothing else. Use the Conventional Commits format (e.g., 'feat: ...', 'fix: ...', 'docs: ...'). Keep the first line under 50 characters."
 });
 
