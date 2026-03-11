@@ -38,14 +38,31 @@ async function main() {
     process.exit(1);
   }
 
-  try {
-    const result = await model.generateContent(diff);
-    const response = await result.response;
-    const commitMessage = response.text();
-    console.log(commitMessage.trim());
-  } catch (error) {
-    console.error("Error calling Gemini API:", error.message);
-    process.exit(1);
+  const MAX_RETRIES = 5;
+  let retryCount = 0;
+  let delay = 2000; // Starting delay: 2 seconds
+
+  while (retryCount <= MAX_RETRIES) {
+    try {
+      const result = await model.generateContent(diff);
+      const response = await result.response;
+      const commitMessage = response.text();
+      console.log(commitMessage.trim());
+      return; // Success!
+    } catch (error) {
+      const isRateLimit = error.message?.includes("429") || error.status === 429;
+      
+      if (isRateLimit && retryCount < MAX_RETRIES) {
+        retryCount++;
+        console.error(`Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${MAX_RETRIES})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+        continue;
+      }
+
+      console.error("Error calling Gemini API:", error.message);
+      process.exit(1);
+    }
   }
 }
 

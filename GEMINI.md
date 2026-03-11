@@ -16,7 +16,9 @@
 5. **Standard Formatting:** `z-git-commit` must strictly follow the Conventional Commits format with a 50-character limit for the subject line.
 
 ## Key Files
-- `bin/z-git-commit`: LLM-powered git commit message generator using Gemini API. Reads diff from stdin.
+- `bin/z-git-commit`: LLM-powered git commit message generator using Gemini API. 
+  - Reads diff from stdin.
+  - **Auto-Mode:** Automatically handles Rate Limit (429) errors by retrying with exponential backoff (up to 5 attempts).
 - `bin/my-tool`: Template/example tool for testing path connectivity.
 - `setup.sh`: Automation script for configuring `PATH` and installing dependencies on new machines.
 
