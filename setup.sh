@@ -37,13 +37,13 @@ fi
 ENV_FILE="$HOME/.env"
 if [ ! -f "$ENV_FILE" ]; then
     echo "🔑 Creating a template .env file in $HOME..."
-    echo "GROQ_API_KEY=your_groq_api_key_here" > "$ENV_FILE"
-    echo "⚠️  Action Required: Update $ENV_FILE with your actual Groq API key."
-elif ! grep -q "GROQ_API_KEY" "$ENV_FILE"; then
-    echo "GROQ_API_KEY=your_groq_api_key_here" >> "$ENV_FILE"
-    echo "⚠️  Action Required: Add your Groq API key to $ENV_FILE."
+    echo "GEMINI_API_KEY=your_gemini_api_key_here" > "$ENV_FILE"
+    echo "⚠️  Action Required: Update $ENV_FILE with your actual Gemini API key."
+elif ! grep -q "GEMINI_API_KEY" "$ENV_FILE"; then
+    echo "GEMINI_API_KEY=your_gemini_api_key_here" >> "$ENV_FILE"
+    echo "⚠️  Action Required: Add your Gemini API key to $ENV_FILE."
 else
-    echo "✅ GROQ_API_KEY found in $ENV_FILE."
+    echo "✅ GEMINI_API_KEY found in $ENV_FILE."
 fi
 
 # 5. Make binaries executable

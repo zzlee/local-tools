@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-const Groq = require("groq-sdk");
-const fs = require("fs");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const path = require("path");
 const os = require("os");
 
@@ -9,14 +8,18 @@ const os = require("os");
 require("dotenv").config({ path: path.join(os.homedir(), ".env") });
 
 // Load API key from environment variable
-const apiKey = process.env.GROQ_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY;
 
 if (!apiKey) {
-  console.error("Error: GROQ_API_KEY is not set in your environment.");
+  console.error("Error: GEMINI_API_KEY is not set in your ~/.env file.");
   process.exit(1);
 }
 
-const groq = new Groq({ apiKey });
+const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  systemInstruction: "You are a helpful assistant that generates concise git commit messages based on git diffs. Provide only the commit message, nothing else. Use the Conventional Commits format (e.g., 'feat: ...', 'fix: ...', 'docs: ...'). Keep the first line under 50 characters."
+});
 
 async function getStdin() {
   let data = "";
@@ -35,24 +38,12 @@ async function main() {
   }
 
   try {
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that generates concise git commit messages based on git diffs. Provide only the commit message, nothing else. Use the Conventional Commits format (e.g., 'feat: ...', 'fix: ...', 'docs: ...'). Keep it under 50 characters for the first line."
-        },
-        {
-          role: "user",
-          content: diff
-        }
-      ],
-      model: "llama-3.3-70b-versatile",
-    });
-
-    const commitMessage = chatCompletion.choices[0]?.message?.content || "";
+    const result = await model.generateContent(diff);
+    const response = await result.response;
+    const commitMessage = response.text();
     console.log(commitMessage.trim());
   } catch (error) {
-    console.error("Error calling Groq API:", error.message);
+    console.error("Error calling Gemini API:", error.message);
     process.exit(1);
   }
 }
