@@ -5,7 +5,8 @@
   "main": "index.js",
   "bin": {
     "my-tool": "bin/my-tool",
-    "z-git-commit": "bin/z-git-commit"
+    "z-git-commit": "bin/z-git-commit",
+    "z-list-gemini-models": "bin/z-list-gemini-models"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

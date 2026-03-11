@@ -19,6 +19,7 @@
 - `bin/z-git-commit`: LLM-powered git commit message generator using Gemini API. 
   - Reads diff from stdin.
   - **Auto-Mode:** Automatically handles Rate Limit (429) errors by retrying with exponential backoff (up to 5 attempts).
+- `bin/z-list-gemini-models`: Utility to list all available Gemini models for the current API key.
 - `bin/my-tool`: Template/example tool for testing path connectivity.
 - `setup.sh`: Automation script for configuring `PATH` and installing dependencies on new machines.
 
