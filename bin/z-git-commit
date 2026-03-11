@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+
+const Groq = require("groq-sdk");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+
+// Load .env from the user's home directory
+require("dotenv").config({ path: path.join(os.homedir(), ".env") });
+
+// Load API key from environment variable
+const apiKey = process.env.GROQ_API_KEY;
+
+if (!apiKey) {
+  console.error("Error: GROQ_API_KEY is not set in your environment.");
+  process.exit(1);
+}
+
+const groq = new Groq({ apiKey });
+
+async function getStdin() {
+  let data = "";
+  for await (const chunk of process.stdin) {
+    data += chunk;
+  }
+  return data;
+}
+
+async function main() {
+  const diff = await getStdin();
+
+  if (!diff || diff.trim() === "") {
+    console.error("Error: No git diff provided on stdin.");
+    process.exit(1);
+  }
+
+  try {
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that generates concise git commit messages based on git diffs. Provide only the commit message, nothing else. Use the Conventional Commits format (e.g., 'feat: ...', 'fix: ...', 'docs: ...'). Keep it under 50 characters for the first line."
+        },
+        {
+          role: "user",
+          content: diff
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+    });
+
+    const commitMessage = chatCompletion.choices[0]?.message?.content || "";
+    console.log(commitMessage.trim());
+  } catch (error) {
+    console.error("Error calling Groq API:", error.message);
+    process.exit(1);
+  }
+}
+
+main();
