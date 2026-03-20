@@ -47,10 +47,40 @@ Replace `"YOUR_GEMINI_API_KEY"` with your actual Gemini API key.
 
 ## Usage
 
-Once installed and configured, you can use the tools directly from your terminal. For example, to generate a git commit message using the LLM-powered `git-commit` gem:
+Once installed and configured, you can use the tools directly from your terminal. The `z-gem` tool now supports two distinct modes of operation:
+
+### 1. Piped Input Mode (for single-turn requests)
+
+This mode is ideal for processing output from other commands, where the entire input is sent to the LLM at once.
+
+**Example: Generate a Git Commit Message**
+To generate a git commit message based on your staged changes using the `git-commit` gem:
 
 ```bash
-git diff | z-gem git-commit
+git diff | z-gem ~/.z-gems/git-commit
 ```
+*(Note: Replace `~/.z-gems/git-commit` with the actual absolute path to your gem if it's not in the default location.)*
+
+### 2. Interactive Console Mode (for multi-turn conversations)
+
+This mode allows for a multi-turn conversation with the LLM. If `z-gem` detects that it's running in an interactive terminal (i.e., not receiving piped input), it will automatically enter this mode.
+
+**Example: Chat with the `tech-english-teacher` gem**
+To start an interactive session with the `tech-english-teacher` gem (the default if no gem path is provided):
+
+```bash
+z-gem
+```
+
+You can also specify a different gem:
+
+```bash
+z-gem ~/.z-gems/your-custom-chat-gem
+```
+
+In interactive mode:
+- Type your message and press Enter.
+- The LLM's response will be displayed.
+- Type `exit` or `quit` (and press Enter) to end the session.
 
 You can find your installed gems in the `.z-gems/` directory in your home folder. Refer to the individual gem scripts for specific usage instructions and options.
