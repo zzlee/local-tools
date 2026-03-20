@@ -35,19 +35,21 @@ chmod +x setup.sh
 
 ### 3. Configure Environment Variables
 
-The tools require certain environment variables, primarily your `GEMINI_API_KEY`. Create a `.env` file in your home directory (`~/.env`) with the necessary variables.
+The tools require certain environment variables, primarily your `GEMINI_API_KEY` and `GROQ_API_KEY`. Create a `.env` file in your home directory (`~/.env`) with the necessary variables.
 
 ```bash
 # ~/.env
 GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 GEMINI_MODEL="gemini-2.0-flash" # Optional: default model
+GROQ_API_KEY="YOUR_GROQ_API_KEY"
+GROQ_MODEL="llama-3.3-70b-versatile" # Optional: default model
 ```
 
-Replace `"YOUR_GEMINI_API_KEY"` with your actual Gemini API key.
+Replace `"YOUR_GEMINI_API_KEY"` and `"YOUR_GROQ_API_KEY"` with your actual API keys.
 
 ## Usage
 
-Once installed and configured, you can use the tools directly from your terminal. The `z-gem` tool now supports two distinct modes of operation:
+Once installed and configured, you can use the tools directly from your terminal. Both `z-gem` (Gemini-based) and `z-gem-groq` (Groq-based) support two distinct modes of operation:
 
 ### 1. Piped Input Mode (for single-turn requests)
 
@@ -57,25 +59,37 @@ This mode is ideal for processing output from other commands, where the entire i
 To generate a git commit message based on your staged changes using the `git-commit` gem:
 
 ```bash
+# Using Gemini
 git diff | z-gem ~/.z-gems/git-commit
+
+# Using Groq
+git diff | z-gem-groq ~/.z-gems/git-commit
 ```
 *(Note: Replace `~/.z-gems/git-commit` with the actual absolute path to your gem if it's not in the default location.)*
 
 ### 2. Interactive Console Mode (for multi-turn conversations)
 
-This mode allows for a multi-turn conversation with the LLM. If `z-gem` detects that it's running in an interactive terminal (i.e., not receiving piped input), it will automatically enter this mode.
+This mode allows for a multi-turn conversation with the LLM. If `z-gem` or `z-gem-groq` detects that it's running in an interactive terminal (i.e., not receiving piped input), it will automatically enter this mode.
 
 **Example: Chat with the `tech-english-teacher` gem**
 To start an interactive session with the `tech-english-teacher` gem (the default if no gem path is provided):
 
 ```bash
+# Using Gemini
 z-gem
+
+# Using Groq
+z-gem-groq
 ```
 
 You can also specify a different gem:
 
 ```bash
+# Using Gemini
 z-gem ~/.z-gems/your-custom-chat-gem
+
+# Using Groq
+z-gem-groq ~/.z-gems/your-custom-chat-gem
 ```
 
 In interactive mode:
