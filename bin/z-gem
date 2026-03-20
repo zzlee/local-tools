@@ -7,7 +7,7 @@ const os = require("os");
 const readline = require("readline"); // Added readline module
 
 // Load .env from the user's home directory
-require("dotenv").config({ path: path.join(os.homedir(), ".env") });
+require("dotenv").config({ path: path.join(os.homedir(), ".env"), quiet: true });
 
 // Load API key and model from environment variables
 const apiKey = process.env.GEMINI_API_KEY;
