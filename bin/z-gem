@@ -18,7 +18,7 @@ if (!apiKey) {
 }
 
 // Determine template file path
-const defaultTemplatePath = path.join(os.homedir(), ".gems", "tech-english-teacher.txt");
+const defaultTemplatePath = path.join(os.homedir(), ".gems", "tech-english-teacher");
 const templatePath = process.argv[2] || defaultTemplatePath;
 
 let systemInstruction = "";
