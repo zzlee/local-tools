@@ -1,0 +1,171 @@
+#!/usr/bin/env node
+
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const readline = require("readline");
+
+// Load .env from the user's home directory
+require("dotenv").config({ path: path.join(os.homedir(), ".env"), quiet: true });
+
+// Load API key and model from environment variables
+const apiKey = process.env.GROQ_API_KEY;
+const modelName = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+
+if (!apiKey) {
+  console.error("Error: GROQ_API_KEY is not set in your ~/.env file.");
+  process.exit(1);
+}
+
+// Determine template file path
+const defaultTemplatePath = path.join(os.homedir(), ".z-gems", "tech-english-teacher");
+const templatePath = process.argv[2] || defaultTemplatePath;
+
+let systemInstruction = "";
+try {
+  systemInstruction = fs.readFileSync(templatePath, "utf8");
+} catch (error) {
+  console.error(`Error: Could not read template file at ${templatePath}.`);
+  console.error(error.message);
+  process.exit(1);
+}
+
+// Function to handle retries for API calls
+async function callGroqApi(messages) {
+  const MAX_RETRIES = 5;
+  let retryCount = 0;
+  let delay = 2000; // Starting delay: 2 seconds
+
+  while (retryCount <= MAX_RETRIES) {
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: messages
+        })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const isRateLimit = response.status === 429;
+
+        if (isRateLimit && retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.error(`Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          continue;
+        }
+        throw new Error(errorBody.error?.message || response.statusText);
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      if (retryCount >= MAX_RETRIES) {
+        console.error("Error calling Groq API:", error.message);
+        throw error;
+      }
+      
+      // For network errors or other issues, we can decide whether to retry.
+      // For now, let's only retry on 429 as per z-gem's pattern.
+      if (error.message && error.message.includes("429")) {
+          // Already handled in loop
+      } else {
+          throw error;
+      }
+    }
+  }
+  throw new Error("Failed to call Groq API after multiple retries.");
+}
+
+async function getStdin() {
+  let data = "";
+  for await (const chunk of process.stdin) {
+    data += chunk;
+  }
+  return data;
+}
+
+async function handlePipedInput() {
+  const input = await getStdin();
+
+  if (!input || input.trim() === "") {
+    console.error("Error: No input provided on stdin for piped mode.");
+    process.exit(1);
+  }
+
+  try {
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: input }
+    ];
+    const responseText = await callGroqApi(messages);
+    console.log(responseText.trim());
+  } catch (error) {
+    process.exit(1);
+  }
+}
+
+async function handleInteractiveInput() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: '> '
+  });
+
+  console.log("Entering interactive mode. Type 'exit' or 'quit' to end the session.");
+  console.log("Using gem: " + templatePath);
+  console.log("Using model: " + modelName);
+
+  const messages = [
+    { role: "system", content: systemInstruction }
+  ];
+
+  rl.prompt();
+
+  rl.on('line', async (line) => {
+    const userInput = line.trim();
+    if (userInput.toLowerCase() === 'exit' || userInput.toLowerCase() === 'quit') {
+      rl.close();
+      return;
+    }
+
+    if (userInput === "") {
+      rl.prompt();
+      return;
+    }
+
+    try {
+      messages.push({ role: "user", content: userInput });
+      const responseText = await callGroqApi(messages);
+      console.log(responseText.trim());
+      messages.push({ role: "assistant", content: responseText });
+    } catch (error) {
+      console.error("Error during interactive chat:", error.message);
+      // Remove the last user message if it failed to keep history consistent
+      messages.pop();
+    }
+    rl.prompt();
+  }).on('close', () => {
+    console.log('Exiting interactive mode.');
+    process.exit(0);
+  });
+}
+
+async function main() {
+  if (process.stdin.isTTY) {
+    // Interactive mode
+    await handleInteractiveInput();
+  } else {
+    // Piped input mode
+    await handlePipedInput();
+  }
+}
+
+main();
