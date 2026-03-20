@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+
+const fs = require("fs");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const path = require("path");
+const os = require("os");
+
+// Load .env from the user's home directory
+require("dotenv").config({ path: path.join(os.homedir(), ".env") });
+
+// Load API key and model from environment variables
+const apiKey = process.env.GEMINI_API_KEY;
+const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+
+if (!apiKey) {
+  console.error("Error: GEMINI_API_KEY is not set in your ~/.env file.");
+  process.exit(1);
+}
+
+// Determine template file path
+const defaultTemplatePath = path.join(os.homedir(), ".gems", "tech-english-teacher.txt");
+const templatePath = process.argv[2] || defaultTemplatePath;
+
+let systemInstruction = "";
+try {
+  systemInstruction = fs.readFileSync(templatePath, "utf8");
+} catch (error) {
+  console.error(`Error: Could not read template file at ${templatePath}.`);
+  console.error(error.message);
+  process.exit(1);
+}
+
+const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({
+  model: modelName,
+  systemInstruction: systemInstruction
+});
+
+async function getStdin() {
+  let data = "";
+  for await (const chunk of process.stdin) {
+    data += chunk;
+  }
+  return data;
+}
+
+async function main() {
+  const diff = await getStdin();
+
+  if (!diff || diff.trim() === "") {
+    console.error("Error: No git diff provided on stdin.");
+    process.exit(1);
+  }
+
+  const MAX_RETRIES = 5;
+  let retryCount = 0;
+  let delay = 2000; // Starting delay: 2 seconds
+
+  while (retryCount <= MAX_RETRIES) {
+    try {
+      const result = await model.generateContent(diff);
+      const response = await result.response;
+      const commitMessage = response.text();
+      console.log(commitMessage.trim());
+      return; // Success!
+    } catch (error) {
+      const isRateLimit = error.message?.includes("429") || error.status === 429;
+      
+      if (isRateLimit && retryCount < MAX_RETRIES) {
+        retryCount++;
+        console.error(`Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${MAX_RETRIES})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+        continue;
+      }
+
+      console.error("Error calling Gemini API:", error.message);
+      process.exit(1);
+    }
+  }
+}
+
+main();

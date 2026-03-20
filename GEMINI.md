@@ -21,7 +21,8 @@
   - **Auto-Mode:** Automatically handles Rate Limit (429) errors by retrying with exponential backoff (up to 5 attempts).
   - **Detailed Output:** For large or complex diffs, it generates a concise summary line followed by a detailed explanatory body.
 - `bin/z-list-gemini-models`: Utility to list all available Gemini models for the current API key.
-- `bin/my-tool`: Template/example tool for testing path connectivity.
+- `bin/z-gem-template`: New tool that generates content based on a customizable template.
+
 - `setup.sh`: Automation script for configuring `PATH` and installing dependencies on new machines.
 
 ## Architecture
