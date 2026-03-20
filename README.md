@@ -5,7 +5,7 @@
 ## Project Overview
 
 This repository provides various CLI tools to streamline development workflows. Key features include:
-- **LLM-powered utilities:** Tools like `z-git-commit` automate tasks using Gemini API.
+- **LLM-powered utilities:** `z-gem` allows for the creation and use of personal LLM-powered tools that automate tasks using the Gemini API.
 - **Global accessibility:** Scripts are designed to be linked globally for easy access from any terminal session.
 - **Centralized configuration:** All environment-specific configurations are managed via a `~/.env` file.
 
@@ -47,10 +47,10 @@ Replace `"YOUR_GEMINI_API_KEY"` with your actual Gemini API key.
 
 ## Usage
 
-Once installed and configured, you can use the tools directly from your terminal. For example, to generate a git commit message using the LLM-powered `z-git-commit` tool:
+Once installed and configured, you can use the tools directly from your terminal. For example, to generate a git commit message using the LLM-powered `git-commit` gem:
 
 ```bash
-git diff | z-git-commit
+git diff | z-gem git-commit
 ```
 
-Refer to the individual tool scripts in the `bin/` directory for specific usage instructions and options.
+You can find your installed gems in the `.z-gems/` directory in your home folder. Refer to the individual gem scripts for specific usage instructions and options.
