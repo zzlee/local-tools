@@ -1,5 +1,7 @@
 #!/bin/bash
 
+npm install
+
 # 1. Execute "npm link" to install local tools globally
 echo "Running 'npm link' to install local tools..."
 npm link
