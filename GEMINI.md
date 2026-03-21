@@ -23,6 +23,7 @@
 - `bin/z-list-gemini-models`: Utility to list all available Gemini models for the current API key.
 - `bin/z-gem`: LLM-powered tool that generates content based on a customizable template using Gemini API.
 - `bin/z-gem-groq`: LLM-powered tool that generates content based on a customizable template using Groq API.
+- `bin/z-gem-ollama`: LLM-powered tool that generates content based on a customizable template using Ollama API.
 
 - `setup.sh`: Automation script for configuring `PATH` and installing dependencies on new machines.
 
