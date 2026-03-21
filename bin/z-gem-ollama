@@ -25,11 +25,11 @@ try {
   process.exit(1);
 }
 
-// Function to handle retries for API calls (consistent with other tools)
-async function callOllamaApi(messages) {
+async function callOllamaApiStreaming(messages, captureResponse = false) {
   const MAX_RETRIES = 3;
   let retryCount = 0;
   let delay = 2000;
+  let fullResponse = "";
 
   while (retryCount <= MAX_RETRIES) {
     try {
@@ -41,7 +41,7 @@ async function callOllamaApi(messages) {
         body: JSON.stringify({
           model: modelName,
           messages: messages,
-          stream: false
+          stream: true
         })
       });
 
@@ -59,16 +59,42 @@ async function callOllamaApi(messages) {
         throw new Error(`Ollama API error: ${response.status} ${response.statusText} - ${errorBody}`);
       }
 
-      const data = await response.json();
-      return data.message.content;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.message?.content) {
+                const content = parsed.message.content;
+                if (captureResponse) {
+                  fullResponse += content;
+                }
+                process.stdout.write(content);
+              }
+            } catch (e) {
+              // Skip invalid JSON lines
+            }
+          }
+        }
+      }
+      
+      process.stdout.write("\n");
+      return captureResponse ? fullResponse : undefined;
     } catch (error) {
       if (retryCount >= MAX_RETRIES) {
         console.error("Error calling Ollama API:", error.message);
         throw error;
       }
       
-      // For network errors (e.g. ECONNREFUSED), we might want to retry if it's transient
-      // but usually if Ollama is down, it's down.
       if (error.cause?.code === 'ECONNREFUSED') {
          console.error(`Error: Could not connect to Ollama at ${ollamaHost}. Is Ollama running?`);
          throw error;
@@ -103,8 +129,7 @@ async function handlePipedInput() {
       { role: "system", content: systemInstruction },
       { role: "user", content: input }
     ];
-    const responseText = await callOllamaApi(messages);
-    console.log(responseText.trim());
+    await callOllamaApiStreaming(messages);
   } catch (error) {
     process.exit(1);
   }
@@ -141,12 +166,11 @@ async function handleInteractiveInput() {
 
     try {
       messages.push({ role: "user", content: userInput });
-      const responseText = await callOllamaApi(messages);
-      console.log(responseText.trim());
-      messages.push({ role: "assistant", content: responseText });
+      const assistantResponse = await callOllamaApiStreaming(messages, true);
+      messages.push({ role: "assistant", content: assistantResponse });
     } catch (error) {
       console.error("Error during interactive chat:", error.message);
-      messages.pop(); // Remove the last user message on failure
+      messages.pop();
     }
     rl.prompt();
   }).on('close', () => {
