@@ -30,11 +30,11 @@ try {
   process.exit(1);
 }
 
-// Function to handle retries for API calls
-async function callGroqApi(messages) {
+// Function to handle streaming API calls
+async function* streamGroqApi(messages) {
   const MAX_RETRIES = 5;
   let retryCount = 0;
-  let delay = 2000; // Starting delay: 2 seconds
+  let delay = 2000;
 
   while (retryCount <= MAX_RETRIES) {
     try {
@@ -46,7 +46,8 @@ async function callGroqApi(messages) {
         },
         body: JSON.stringify({
           model: modelName,
-          messages: messages
+          messages: messages,
+          stream: true
         })
       });
 
@@ -58,22 +59,50 @@ async function callGroqApi(messages) {
           retryCount++;
           console.error(`Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${MAX_RETRIES})`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2; // Exponential backoff
+          delay *= 2;
           continue;
         }
         throw new Error(errorBody.error?.message || response.statusText);
       }
 
-      const data = await response.json();
-      return data.choices[0].message.content;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("data: ")) {
+            const data = trimmed.slice(6);
+            if (data === "[DONE]") {
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                yield delta;
+              }
+            } catch (e) {
+              // Skip malformed JSON
+            }
+          }
+        }
+      }
+      return;
     } catch (error) {
       if (retryCount >= MAX_RETRIES) {
         console.error("Error calling Groq API:", error.message);
         throw error;
       }
       
-      // For network errors or other issues, we can decide whether to retry.
-      // For now, let's only retry on 429 as per z-gem's pattern.
       if (error.message && error.message.includes("429")) {
           // Already handled in loop
       } else {
@@ -105,8 +134,10 @@ async function handlePipedInput() {
       { role: "system", content: systemInstruction },
       { role: "user", content: input }
     ];
-    const responseText = await callGroqApi(messages);
-    console.log(responseText.trim());
+    for await (const chunk of streamGroqApi(messages)) {
+      process.stdout.write(chunk);
+    }
+    console.log();
   } catch (error) {
     process.exit(1);
   }
@@ -143,12 +174,15 @@ async function handleInteractiveInput() {
 
     try {
       messages.push({ role: "user", content: userInput });
-      const responseText = await callGroqApi(messages);
-      console.log(responseText.trim());
-      messages.push({ role: "assistant", content: responseText });
+      let fullResponse = "";
+      for await (const chunk of streamGroqApi(messages)) {
+        process.stdout.write(chunk);
+        fullResponse += chunk;
+      }
+      console.log();
+      messages.push({ role: "assistant", content: fullResponse });
     } catch (error) {
       console.error("Error during interactive chat:", error.message);
-      // Remove the last user message if it failed to keep history consistent
       messages.pop();
     }
     rl.prompt();
