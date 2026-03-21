@@ -1,0 +1,168 @@
+#!/usr/bin/env node
+
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const readline = require("readline");
+
+// Load .env from the user's home directory
+require("dotenv").config({ path: path.join(os.homedir(), ".env"), quiet: true });
+
+// Load Host and model from environment variables
+const ollamaHost = process.env.OLLAMA_HOST || "http://localhost:11434";
+const modelName = process.env.OLLAMA_MODEL || "llama3.2";
+
+// Determine template file path
+const defaultTemplatePath = path.join(os.homedir(), ".z-gems", "tech-english-teacher");
+const templatePath = process.argv[2] || defaultTemplatePath;
+
+let systemInstruction = "";
+try {
+  systemInstruction = fs.readFileSync(templatePath, "utf8");
+} catch (error) {
+  console.error(`Error: Could not read template file at ${templatePath}.`);
+  console.error(error.message);
+  process.exit(1);
+}
+
+// Function to handle retries for API calls (consistent with other tools)
+async function callOllamaApi(messages) {
+  const MAX_RETRIES = 3;
+  let retryCount = 0;
+  let delay = 2000;
+
+  while (retryCount <= MAX_RETRIES) {
+    try {
+      const response = await fetch(`${ollamaHost}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: messages,
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "Unknown error");
+        const isRateLimit = response.status === 429;
+
+        if (isRateLimit && retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.error(`Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+          continue;
+        }
+        throw new Error(`Ollama API error: ${response.status} ${response.statusText} - ${errorBody}`);
+      }
+
+      const data = await response.json();
+      return data.message.content;
+    } catch (error) {
+      if (retryCount >= MAX_RETRIES) {
+        console.error("Error calling Ollama API:", error.message);
+        throw error;
+      }
+      
+      // For network errors (e.g. ECONNREFUSED), we might want to retry if it's transient
+      // but usually if Ollama is down, it's down.
+      if (error.cause?.code === 'ECONNREFUSED') {
+         console.error(`Error: Could not connect to Ollama at ${ollamaHost}. Is Ollama running?`);
+         throw error;
+      }
+
+      retryCount++;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+  throw new Error("Failed to call Ollama API after retries.");
+}
+
+async function getStdin() {
+  let data = "";
+  for await (const chunk of process.stdin) {
+    data += chunk;
+  }
+  return data;
+}
+
+async function handlePipedInput() {
+  const input = await getStdin();
+
+  if (!input || input.trim() === "") {
+    console.error("Error: No input provided on stdin for piped mode.");
+    process.exit(1);
+  }
+
+  try {
+    const messages = [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: input }
+    ];
+    const responseText = await callOllamaApi(messages);
+    console.log(responseText.trim());
+  } catch (error) {
+    process.exit(1);
+  }
+}
+
+async function handleInteractiveInput() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: '> '
+  });
+
+  console.log("Entering interactive mode. Type 'exit' or 'quit' to end the session.");
+  console.log("Using gem: " + templatePath);
+  console.log("Using model: " + modelName + " at " + ollamaHost);
+
+  const messages = [
+    { role: "system", content: systemInstruction }
+  ];
+
+  rl.prompt();
+
+  rl.on('line', async (line) => {
+    const userInput = line.trim();
+    if (userInput.toLowerCase() === 'exit' || userInput.toLowerCase() === 'quit') {
+      rl.close();
+      return;
+    }
+
+    if (userInput === "") {
+      rl.prompt();
+      return;
+    }
+
+    try {
+      messages.push({ role: "user", content: userInput });
+      const responseText = await callOllamaApi(messages);
+      console.log(responseText.trim());
+      messages.push({ role: "assistant", content: responseText });
+    } catch (error) {
+      console.error("Error during interactive chat:", error.message);
+      messages.pop(); // Remove the last user message on failure
+    }
+    rl.prompt();
+  }).on('close', () => {
+    console.log('Exiting interactive mode.');
+    process.exit(0);
+  });
+}
+
+async function main() {
+  if (process.stdin.isTTY) {
+    // Interactive mode
+    await handleInteractiveInput();
+  } else {
+    // Piped input mode
+    await handlePipedInput();
+  }
+}
+
+main();
