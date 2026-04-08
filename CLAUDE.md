@@ -18,7 +18,6 @@ The project is a collection of Node.js (CommonJS) CLI utilities designed for glo
 
 - **Binaries (`bin/`)**: Contains the primary executable tools.
   - `z-gem`, `z-gem-groq`, `z-gem-ollama`: Versatile LLM-powered tools that use templates (gems) for different tasks. They support both piped input mode and interactive console mode.
-  - `z-git-commit`: Specialized tool for generating conventional commit messages from `git diff`.
   - `z-list-gemini-models`: Utility to list available Gemini models.
 - **Skills (`skills/`)**: A directory containing specialized prompt templates/definitions (gems) for various roles (e.g., `git-expert`, `linux-kernel-expert`).
 - **Configuration**: Centralized in `~/.env` using `dotenv` to avoid storing secrets in the repository.
@@ -28,4 +27,3 @@ The project is a collection of Node.js (CommonJS) CLI utilities designed for glo
 
 - **Configuration Path**: Mandatory use of `~/.env` for all environment variables.
 - **Binary Requirements**: No extensions in `bin/`, must use Node.js shebang.
-- **Commit Format**: `z-git-commit` must follow Conventional Commits (50-char subject limit).
