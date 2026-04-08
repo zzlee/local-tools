@@ -123,3 +123,43 @@ To list all available Gemini models for your configured `GEMINI_API_KEY`:
 ```bash
 z-list-gemini-models
 ```
+
+### 4. Using `z-gmail` (Gmail CLI Tool)
+
+The `z-gmail` tool allows you to perform common Gmail operations directly from your terminal.
+
+#### Authentication Setup
+Before using `z-gmail`, you need to set up Google Cloud credentials. This is a one-time process.
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a new project or select an existing one.
+3. Search for "Gmail API" and **Enable** it for your project.
+4. Go to **APIs & Services > OAuth consent screen** and configure it (you can choose "External" and just fill in the required fields, then add your own email as a Test user).
+5. Go to **APIs & Services > Credentials**.
+6. Click **Create Credentials** > **OAuth client ID**.
+7. Select **Desktop app** as the Application type.
+8. Download the resulting JSON file and save it exactly as `~/.gmail-credentials.json` in your home directory.
+
+The first time you run a `z-gmail` command, it will open your web browser to ask for authorization. Once authorized, it will save a token to `~/.gmail-token.json` so you don't have to authenticate every time.
+
+#### Examples
+
+**List system folders:**
+```bash
+z-gmail list-folders
+```
+
+**Search for emails:**
+```bash
+z-gmail search -q "subject:meeting"
+```
+
+**Delete all emails matching a query (prompts for confirmation):**
+```bash
+z-gmail delete-all -q "from:newsletter@example.com"
+```
+
+**Download an email by ID as an `.eml` file:**
+```bash
+z-gmail download <email-id>
+```
