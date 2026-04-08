@@ -49,9 +49,13 @@ Replace `"YOUR_GEMINI_API_KEY"` and `"YOUR_GROQ_API_KEY"` with your actual API k
 
 ## Usage
 
-Once installed and configured, you can use the tools directly from your terminal. Both `z-gem` (Gemini-based) and `z-gem-groq` (Groq-based) support two distinct modes of operation:
+Once installed and configured, you can use the tools directly from your terminal.
 
-### 1. Piped Input Mode (for single-turn requests)
+### 1. Using `z-gem` and `z-gem-groq` (LLM-powered tools)
+
+Both `z-gem` (Gemini-based) and `z-gem-groq` (Groq-based) support two distinct modes of operation:
+
+#### a. Piped Input Mode (for single-turn requests)
 
 This mode is ideal for processing output from other commands, where the entire input is sent to the LLM at once.
 
@@ -67,7 +71,7 @@ git diff | z-gem-groq ~/.z-gems/git-commit
 ```
 *(Note: Replace `~/.z-gems/git-commit` with the actual absolute path to your gem if it's not in the default location.)*
 
-### 2. Interactive Console Mode (for multi-turn conversations)
+#### b. Interactive Console Mode (for multi-turn conversations)
 
 This mode allows for a multi-turn conversation with the LLM. If `z-gem` or `z-gem-groq` detects that it's running in an interactive terminal (i.e., not receiving piped input), it will automatically enter this mode.
 
@@ -98,3 +102,24 @@ In interactive mode:
 - Type `exit` or `quit` (and press Enter) to end the session.
 
 You can find your installed gems in the `.z-gems/` directory in your home folder. Refer to the individual gem scripts for specific usage instructions and options.
+
+### 2. Using `z-dotnet` for Environment Loading
+
+The `z-dotnet` tool simplifies running commands that require environment variables defined in your `~/.env` file. It loads these variables before executing the specified command, ensuring that all necessary configurations are available to your program.
+
+**Example:**
+To echo an environment variable defined in your `~/.env` file:
+
+```bash
+z-dotnet echo \$GEMINI_API_KEY
+```
+
+This is particularly useful when running scripts or applications that do not automatically load `.env` files, or when you want to ensure a consistent environment for specific commands.
+
+### 3. Listing Available Gemini Models
+
+To list all available Gemini models for your configured `GEMINI_API_KEY`:
+
+```bash
+z-list-gemini-models
+```
