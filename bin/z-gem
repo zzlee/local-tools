@@ -37,6 +37,28 @@ const model = genAI.getGenerativeModel({
   systemInstruction: systemInstruction
 });
 
+function formatResponse(response) {
+  let output = "";
+
+  // Extract the thought part if it exists
+  const candidates = response.candidates;
+  if (candidates && candidates.length > 0) {
+    const parts = candidates[0].content?.parts || [];
+    const thoughtPart = parts.find(p => p.thought);
+    if (thoughtPart && thoughtPart.thought) {
+      output += `\x1b[90m<thinking>\n${thoughtPart.thought}\n</thinking>\x1b[0m\n`;
+    }
+  }
+
+  // Append the normal text content
+  const text = response.text ? response.text() : "";
+  if (text) {
+    output += text;
+  }
+
+  return output;
+}
+
 // Function to handle retries for API calls
 async function callGeminiApi(prompt) {
   const MAX_RETRIES = 5;
@@ -47,7 +69,7 @@ async function callGeminiApi(prompt) {
     try {
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      return response.text();
+      return formatResponse(response);
     } catch (error) {
       const isRateLimit = error.message?.includes("429") || error.status === 429;
 
@@ -124,8 +146,8 @@ async function handleInteractiveInput() {
     try {
       const result = await chat.sendMessage(userInput); // Use chat.sendMessage for multi-turn
       const response = await result.response;
-      const text = response.text();
-      console.log(text.trim());
+      const responseText = formatResponse(response);
+      console.log(responseText.trim());
     } catch (error) {
       console.error("Error during interactive chat:", error.message);
       // Decide if you want to exit or continue after an error
