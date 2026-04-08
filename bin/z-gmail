@@ -69,8 +69,19 @@ async function authorize() {
   try {
     await fs.access(CREDENTIALS_PATH);
   } catch (err) {
-    console.error(`Credentials file not found at ${CREDENTIALS_PATH}.`);
-    console.error(`Please download your OAuth client ID credentials from Google Cloud Console and save them to ${CREDENTIALS_PATH}.`);
+    console.error(`\n======================================================`);
+    console.error(`Error: Credentials file not found at ${CREDENTIALS_PATH}`);
+    console.error(`======================================================\n`);
+    console.error(`To use z-gmail, you need to set up Google Cloud credentials:\n`);
+    console.error(`1. Go to Google Cloud Console: https://console.cloud.google.com/`);
+    console.error(`2. Create a new project or select an existing one.`);
+    console.error(`3. Enable the "Gmail API" for your project.`);
+    console.error(`4. Go to "APIs & Services" > "Credentials".`);
+    console.error(`5. Click "Create Credentials" > "OAuth client ID".`);
+    console.error(`6. Select "Desktop app" as the Application type.`);
+    console.error(`7. Download the JSON file and save it as:`);
+    console.error(`   ${CREDENTIALS_PATH}\n`);
+    console.error(`For more details, check the README.md.\n`);
     process.exit(1);
   }
 
