@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "bin": {
-    "z-git-commit": "bin/z-git-commit",
     "z-list-gemini-models": "bin/z-list-gemini-models",
     "z-gem": "bin/z-gem",
     "z-gem-groq": "bin/z-gem-groq",
