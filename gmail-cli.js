@@ -188,36 +188,28 @@ async function downloadMessage(auth, msgId) {
 }
 
 /**
- * Delete messages matching query with confirmation
+ * Prompts the user for confirmation
  */
-async function deleteAllMessages(auth, query) {
-  console.log('--- Pre-check ---');
-  const count = await countMessages(auth, query);
-
-  if (count === 0) {
-    console.log('No messages to delete.');
-    return;
-  }
-
-  console.log(`\nWARNING: You are about to DELETE ${count} emails matching: '${query}'`);
-  
+async function confirmAction(prompt) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
 
-  const confirm = await new Promise(resolve => {
-    rl.question("Type 'yes' to confirm deletion: ", (answer) => {
+  const answer = await new Promise(resolve => {
+    rl.question(prompt, (answer) => {
       rl.close();
       resolve(answer);
     });
   });
 
-  if (confirm.toLowerCase() !== 'yes') {
-    console.log('Operation cancelled.');
-    return;
-  }
+  return answer.toLowerCase() === 'yes';
+}
 
+/**
+ * Performs batch deletion of messages matching the query
+ */
+async function performBatchDelete(auth, query) {
   const gmail = google.gmail({ version: 'v1', auth });
   let totalDeleted = 0;
 
@@ -252,6 +244,29 @@ async function deleteAllMessages(auth, query) {
   } catch (err) {
     console.error(`An error occurred: ${err.message}`);
   }
+}
+
+/**
+ * Delete messages matching query with confirmation
+ */
+async function deleteAllMessages(auth, query) {
+  console.log('--- Pre-check ---');
+  const count = await countMessages(auth, query);
+
+  if (count === 0) {
+    console.log('No messages to delete.');
+    return;
+  }
+
+  console.log(`\nWARNING: You are about to DELETE ${count} emails matching: '${query}'`);
+  const isConfirmed = await confirmAction("Type 'yes' to confirm deletion: ");
+
+  if (!isConfirmed) {
+    console.log('Operation cancelled.');
+    return;
+  }
+
+  await performBatchDelete(auth, query);
 }
 
 program
