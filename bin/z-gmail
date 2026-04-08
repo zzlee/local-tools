@@ -146,19 +146,20 @@ async function listMessages(auth, query, limit = 10) {
       return;
     }
 
-    console.log(`${'ID'.padEnd(20)} | Subject`);
-    console.log('-'.repeat(80));
+    console.log(`${'ID'.padEnd(20)} | ${'Date'.padEnd(30)} | Subject`);
+    console.log('-'.repeat(100));
 
     for (const msg of messages) {
       const msgDetail = await gmail.users.messages.get({
         userId: 'me',
         id: msg.id,
         format: 'metadata',
-        metadataHeaders: ['Subject'],
-      });
-      const headers = msgDetail.data.payload.headers || [];
-      const subject = (headers.find(h => h.name === 'Subject') || { value: '(No Subject)' }).value;
-      console.log(`${msg.id.padEnd(20)} | ${subject}`);
+         metadataHeaders: ['Subject', 'Date'],
+       });
+       const headers = msgDetail.data.payload.headers || [];
+       const subject = (headers.find(h => h.name === 'Subject') || { value: '(No Subject)' }).value;
+       const date = (headers.find(h => h.name === 'Date') || { value: '(No Date)' }).value;
+       console.log(`${msg.id.padEnd(20)} | ${date.padEnd(30)} | ${subject}`);
     }
   } catch (err) {
     console.error(`An error occurred: ${err.message}`);
