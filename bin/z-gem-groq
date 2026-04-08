@@ -114,11 +114,11 @@ async function* streamGroqApi(messages) {
 }
 
 async function getStdin() {
-  let data = "";
+  const chunks = [];
   for await (const chunk of process.stdin) {
-    data += chunk;
+    chunks.push(chunk);
   }
-  return data;
+  return chunks.join("");
 }
 
 async function handlePipedInput() {
