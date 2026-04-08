@@ -99,6 +99,7 @@ async function handleInteractiveInput() {
 
   console.log("Entering interactive mode. Type 'exit' or 'quit' to end the session.");
   console.log("Using gem: " + templatePath);
+  console.log("Using model: " + modelName);
 
   // Initialize chat session for multi-turn conversations
   const chat = model.startChat({
