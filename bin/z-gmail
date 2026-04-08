@@ -267,10 +267,11 @@ async function deleteAllMessages(auth, query) {
       const idsToDelete = messages.map(msg => msg.id);
       console.log(`Deleting batch of ${idsToDelete.length} messages...`);
 
-      await gmail.users.messages.batchDelete({
+      await gmail.users.messages.batchModify({
         userId: 'me',
         requestBody: {
           ids: idsToDelete,
+          addLabelIds: ["TRASH"],
         },
       });
 
