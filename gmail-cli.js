@@ -179,7 +179,7 @@ async function downloadMessage(auth, msgId) {
       format: 'raw',
     });
     const buffer = Buffer.from(res.data.raw, 'base64url');
-    const filename = `${msgId}.eml`;
+    const filename = `${path.basename(msgId)}.eml`;
     await fs.writeFile(filename, buffer);
     console.log(`Email downloaded successfully: ${filename}`);
   } catch (err) {
