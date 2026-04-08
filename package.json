@@ -9,7 +9,8 @@
     "z-gem": "bin/z-gem",
     "z-gem-groq": "bin/z-gem-groq",
     "z-gem-ollama": "bin/z-gem-ollama",
-    "z-dotnet": "bin/z-dotnet"
+    "z-dotnet": "bin/z-dotnet",
+    "z-gmail": "bin/z-gmail"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -19,7 +20,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
     "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.3.1"
+    "commander": "^14.0.3",
+    "dotenv": "^17.3.1",
+    "googleapis": "^171.4.0"
   }
 }
