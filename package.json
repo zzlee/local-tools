@@ -9,7 +9,9 @@
     "z-gem-groq": "bin/z-gem-groq",
     "z-gem-ollama": "bin/z-gem-ollama",
     "z-dotnet": "bin/z-dotnet",
-    "z-gmail": "bin/z-gmail"
+    "z-gmail": "bin/z-gmail",
+    "mcp-gemini": "bin/mcp-gemini",
+    "mcp-gmail": "bin/mcp-gmail"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -21,8 +23,14 @@
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
     "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.2",
     "commander": "^14.0.3",
     "dotenv": "^17.3.1",
-    "googleapis": "^171.4.0"
+    "express": "^5.2.1",
+    "googleapis": "^171.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2"
   }
 }
