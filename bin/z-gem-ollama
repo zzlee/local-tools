@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const readline = require("readline");
+const { Ollama } = require("ollama");
 
 // Load .env from the user's home directory
 require("dotenv").config({ path: path.join(os.homedir(), ".env"), quiet: true });
@@ -11,6 +12,8 @@ require("dotenv").config({ path: path.join(os.homedir(), ".env"), quiet: true })
 // Load Host and model from environment variables
 const ollamaHost = process.env.OLLAMA_HOST || "http://localhost:11434";
 const modelName = process.env.OLLAMA_MODEL || "llama3.2";
+
+const ollama = new Ollama({ host: ollamaHost });
 
 // Determine template file path
 const defaultTemplatePath = path.join(os.homedir(), ".z-gems", "tech-english-teacher");
@@ -26,86 +29,63 @@ try {
 }
 
 async function callOllamaApiStreaming(messages, captureResponse = false) {
-  const MAX_RETRIES = 3;
-  let retryCount = 0;
-  let delay = 2000;
   let fullResponse = "";
+  try {
+    const response = await ollama.chat({
+      model: modelName,
+      messages: messages,
+      stream: true,
+      think: true
+    });
 
-  while (retryCount <= MAX_RETRIES) {
-    try {
-      const response = await fetch(`${ollamaHost}/api/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: messages,
-          stream: true
-        })
-      });
+    let inThinking = false;
 
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => "Unknown error");
-        const isRateLimit = response.status === 429;
+    for await (const part of response) {
+      const thinking = part.message?.thinking;
 
-        if (isRateLimit && retryCount < MAX_RETRIES) {
-          retryCount++;
-          console.error(`Rate limit hit (429). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${MAX_RETRIES})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2;
-          continue;
+      if (thinking && !inThinking) {
+        inThinking = true
+
+        if (captureResponse) {
+          fullResponse += `\x1b[90m`;
         }
-        throw new Error(`Ollama API error: ${response.status} ${response.statusText} - ${errorBody}`);
+        process.stdout.write(`\x1b[90m`);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      if (thinking) {
+        if (captureResponse) {
+          fullResponse += thinking;
+        }
+        process.stdout.write(thinking);
+      }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          if (line.trim()) {
-            try {
-              const parsed = JSON.parse(line);
-              if (parsed.message?.content) {
-                const content = parsed.message.content;
-                if (captureResponse) {
-                  fullResponse += content;
-                }
-                process.stdout.write(content);
-              }
-            } catch (e) {
-              // Skip invalid JSON lines
-            }
+      const content = part.message.content;
+      if (content) {
+        if (inThinking) {
+          if (captureResponse) {
+            fullResponse += `\x1b[0m\n`;
           }
+          process.stdout.write(`\x1b[0m\n`);
+          inThinking = false
         }
-      }
-      
-      process.stdout.write("\n");
-      return captureResponse ? fullResponse : undefined;
-    } catch (error) {
-      if (retryCount >= MAX_RETRIES) {
-        console.error("Error calling Ollama API:", error.message);
-        throw error;
-      }
-      
-      if (error.cause?.code === 'ECONNREFUSED') {
-         console.error(`Error: Could not connect to Ollama at ${ollamaHost}. Is Ollama running?`);
-         throw error;
-      }
 
-      retryCount++;
-      await new Promise(resolve => setTimeout(resolve, delay));
-      delay *= 2;
+        if (captureResponse) {
+          fullResponse += content;
+        }
+        process.stdout.write(content);
+      }
     }
+    
+    process.stdout.write("\n");
+    return captureResponse ? fullResponse : undefined;
+  } catch (error) {
+    if (error.message.includes("ECONNREFUSED")) {
+      console.error(`Error: Could not connect to Ollama at ${ollamaHost}. Is Ollama running?`);
+    } else {
+      console.error("Error calling Ollama API:", error.message);
+    }
+    throw error;
   }
-  throw new Error("Failed to call Ollama API after retries.");
 }
 
 async function getStdin() {
