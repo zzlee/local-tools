@@ -3,12 +3,12 @@
   "mcp": {
     "mcp-gemini": {
       "type": "local",
-      "command": ["node", "/home/zzlee/local-tools/bin/mcp-gemini"],
+      "command": ["mcp-gemini"],
       "enabled": true
     },
     "mcp-gmail": {
       "type": "local",
-      "command": ["node", "/home/zzlee/local-tools/bin/mcp-gmail"],
+      "command": ["mcp-gmail"],
       "enabled": true
     }
   }
