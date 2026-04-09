@@ -68,6 +68,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "gmail_read",
+        description: "Read email content and print as markdown",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Email ID" },
+          },
+          required: ["id"],
+        },
+      },
+      {
         name: "gmail_download",
         description: "Download email by ID as .eml file.",
         inputSchema: {
@@ -131,6 +142,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       stdout = result.stdout;
     } else if (name === "gmail_count") {
       const result = await execFileAsync(process.execPath, [zGmailScript, "count", "-q", args.query]);
+      stdout = result.stdout;
+    } else if (name === "gmail_read") {
+      const result = await execFileAsync(process.execPath, [zGmailScript, "read", args.id]);
       stdout = result.stdout;
     } else if (name === "gmail_download") {
       const result = await execFileAsync(process.execPath, [zGmailScript, "download", args.id]);
