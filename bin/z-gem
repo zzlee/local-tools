@@ -37,7 +37,33 @@ const model = genAI.getGenerativeModel({
   systemInstruction: systemInstruction
 });
 
+async function streamResponse(result) {
+  let inThought = false;
+  for await (const chunk of result.stream) {
+    const parts = chunk.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.thought) {
+        if (!inThought) {
+          process.stdout.write(`\x1b[90m\n`);
+          inThought = true;
+        }
+        process.stdout.write(part.text);
+      } else if (part.text) {
+        if (inThought) {
+          process.stdout.write(`\x1b[0m\n\n`);
+          inThought = false;
+        }
+        process.stdout.write(part.text);
+      }
+    }
+  }
+  if (inThought) {
+    process.stdout.write(`\x1b[0m\n`);
+  }
+}
+
 function formatResponse(response) {
+
   let output = "";
 
   // Extract the thought part if it exists
@@ -70,9 +96,7 @@ async function callGeminiApi(prompt) {
 
   while (retryCount <= MAX_RETRIES) {
     try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return formatResponse(response);
+      return await model.generateContentStream(prompt);
     } catch (error) {
       const isRateLimit = error.message?.includes("429") || error.status === 429;
 
@@ -108,8 +132,9 @@ async function handlePipedInput() {
   }
 
   try {
-    const responseText = await callGeminiApi(input);
-    console.log(responseText.trim());
+    const result = await callGeminiApi(input);
+    await streamResponse(result);
+    process.stdout.write('\n');
   } catch (error) {
     process.exit(1);
   }
@@ -147,10 +172,9 @@ async function handleInteractiveInput() {
     }
 
     try {
-      const result = await chat.sendMessage(userInput); // Use chat.sendMessage for multi-turn
-      const response = await result.response;
-      const responseText = formatResponse(response);
-      console.log(responseText.trim());
+      const result = await chat.sendMessageStream(userInput); // Use sendMessageStream for streaming
+      await streamResponse(result);
+      process.stdout.write('\n');
     } catch (error) {
       console.error("Error during interactive chat:", error.message);
       // Decide if you want to exit or continue after an error
