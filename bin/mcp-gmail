@@ -51,6 +51,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             query: { type: "string", description: "Gmail search query" },
             limit: { type: "number", description: "Max results to show (default 10)" },
+            sort: { type: "string", description: "Sort order (date-desc, date-asc, default date-desc)" },
           },
           required: ["query"],
         },
@@ -109,6 +110,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const cmdArgs = [zGmailScript, "search", "-q", args.query];
       if (args.limit) {
         cmdArgs.push("-n", args.limit.toString());
+      }
+      if (args.sort) {
+        cmdArgs.push("-s", args.sort);
       }
       const result = await execFileAsync(process.execPath, cmdArgs);
       stdout = result.stdout;

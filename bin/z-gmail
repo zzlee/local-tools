@@ -131,7 +131,7 @@ async function listLabels(auth, labelTypeFilter) {
 /**
  * List messages based on query
  */
-async function listMessages(auth, query, limit = 10) {
+async function listMessages(auth, query, limit = 10, sort = 'date-desc') {
   const gmail = google.gmail({ version: 'v1', auth });
   try {
     const res = await gmail.users.messages.list({
@@ -146,20 +146,32 @@ async function listMessages(auth, query, limit = 10) {
       return;
     }
 
-    console.log(`${'ID'.padEnd(20)} | ${'Date'.padEnd(30)} | Subject`);
-    console.log('-'.repeat(100));
-
+    const msgDetails = [];
     for (const msg of messages) {
       const msgDetail = await gmail.users.messages.get({
         userId: 'me',
         id: msg.id,
         format: 'metadata',
          metadataHeaders: ['Subject', 'Date'],
-       });
-       const headers = msgDetail.data.payload.headers || [];
-       const subject = (headers.find(h => h.name === 'Subject') || { value: '(No Subject)' }).value;
-       const date = (headers.find(h => h.name === 'Date') || { value: '(No Date)' }).value;
-       console.log(`${msg.id.padEnd(20)} | ${date.padEnd(30)} | ${subject}`);
+      });
+      const headers = msgDetail.data.payload.headers || [];
+      const subject = (headers.find(h => h.name === 'Subject') || { value: '(No Subject)' }).value;
+      const date = (headers.find(h => h.name === 'Date') || { value: '(No Date)' }).value;
+      msgDetails.push({ id: msg.id, date, subject });
+    }
+
+    if (sort === 'date-asc') {
+      msgDetails.sort((a, b) => new Date(a.date) - new Date(b.date));
+    } else {
+      // Default to date-desc
+      msgDetails.sort((a, b) => new Date(b.date) - new Date(a.date));
+    }
+
+    console.log(`${'ID'.padEnd(20)} | ${'Date'.padEnd(30)} | Subject`);
+    console.log('-'.repeat(100));
+
+    for (const msg of msgDetails) {
+      console.log(`${msg.id.padEnd(20)} | ${msg.date.padEnd(30)} | ${msg.subject}`);
     }
   } catch (err) {
     console.error(`An error occurred: ${err.message}`);
@@ -311,9 +323,10 @@ program
   .description('Search emails and show IDs')
   .requiredOption('-q, --query <string>', 'Gmail search query')
   .option('-n, --limit <number>', 'Max results to show', parseInt, 10)
+  .option('-s, --sort <string>', 'Sort order (date-desc, date-asc)', 'date-desc')
   .action(async (options) => {
     const auth = await authorize();
-    await listMessages(auth, options.query, options.limit);
+    await listMessages(auth, options.query, options.limit, options.sort);
   });
 
 program
