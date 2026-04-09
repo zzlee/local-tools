@@ -230,6 +230,26 @@ async function downloadMessage(auth, msgId) {
 }
 
 /**
+ * Move message from one label to another
+ */
+async function moveMessage(auth, msgId, fromLabel, toLabel) {
+  const gmail = google.gmail({ version: 'v1', auth });
+  try {
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: msgId,
+      requestBody: {
+        addLabelIds: [toLabel],
+        removeLabelIds: [fromLabel],
+      },
+    });
+    console.log(`Message ${msgId} moved from ${fromLabel} to ${toLabel} successfully.`);
+  } catch (err) {
+    console.error(`An error occurred: ${err.message}`);
+  }
+}
+
+/**
  * Delete messages matching query with confirmation
  */
 async function deleteAllMessages(auth, query) {
@@ -344,6 +364,14 @@ program
   .action(async (id) => {
     const auth = await authorize();
     await downloadMessage(auth, id);
+  });
+
+program
+  .command('move <id> <fromLabel> <toLabel>')
+  .description('Move email from one folder/label to another')
+  .action(async (id, fromLabel, toLabel) => {
+    const auth = await authorize();
+    await moveMessage(auth, id, fromLabel, toLabel);
   });
 
 program

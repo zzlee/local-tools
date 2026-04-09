@@ -79,6 +79,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "gmail_move",
+        description: "Move an email from one folder/label to another.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Email ID" },
+            fromLabel: { type: "string", description: "Source folder/label ID (e.g., INBOX)" },
+            toLabel: { type: "string", description: "Destination folder/label ID (e.g., TRASH)" },
+          },
+          required: ["id", "fromLabel", "toLabel"],
+        },
+      },
+      {
         name: "gmail_delete_all",
         description: "Recursively delete emails matching query.",
         inputSchema: {
@@ -121,6 +134,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       stdout = result.stdout;
     } else if (name === "gmail_download") {
       const result = await execFileAsync(process.execPath, [zGmailScript, "download", args.id]);
+      stdout = result.stdout;
+    } else if (name === "gmail_move") {
+      const result = await execFileAsync(process.execPath, [zGmailScript, "move", args.id, args.fromLabel, args.toLabel]);
       stdout = result.stdout;
     } else if (name === "gmail_delete_all") {
       // For delete-all, we need to bypass the interactive prompt by piping "yes\n"
