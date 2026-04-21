@@ -4,7 +4,6 @@ const fs = require('fs/promises');
 const path = require('path');
 const os = require('os');
 const process = require('process');
-const { authenticate } = require('@google-cloud/local-auth');
 const { google } = require('googleapis');
 const { program } = require('commander');
 const readline = require('readline');
@@ -85,14 +84,52 @@ async function authorize() {
     process.exit(1);
   }
 
-  client = await authenticate({
-    scopes: SCOPES,
-    keyfilePath: CREDENTIALS_PATH,
+  const credentialsContent = await fs.readFile(CREDENTIALS_PATH);
+  const credentials = JSON.parse(credentialsContent);
+  const key = credentials.installed || credentials.web;
+
+  const oauth2Client = new google.auth.OAuth2(
+    key.client_id,
+    key.client_secret,
+    'http://localhost'
+  );
+
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
   });
-  if (client.credentials) {
-    await saveCredentials(client);
+
+  console.log(`\n======================================================`);
+  console.log(`Authorization required`);
+  console.log(`======================================================\n`);
+  console.log(`1. Open the following URL in your browser:`);
+  console.log(`   ${authUrl}\n`);
+  console.log(`2. Grant the requested permissions.`);
+  console.log(`3. You will be redirected to a URL (e.g., http://localhost/?code=...).`);
+  console.log(`4. Copy the 'code' parameter from that URL and paste it below.\n`);
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const code = await new Promise((resolve) => {
+    rl.question('Enter the authorization code: ', (answer) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
+
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+    await saveCredentials(oauth2Client);
+  } catch (err) {
+    console.error(`\nError retrieving access token: ${err.message}`);
+    process.exit(1);
   }
-  return client;
+
+  return oauth2Client;
 }
 
 /**
