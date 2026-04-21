@@ -113,12 +113,28 @@ async function authorize() {
     output: process.stdout,
   });
 
-  const code = await new Promise((resolve) => {
-    rl.question('Enter the authorization code: ', (answer) => {
+  const input = await new Promise((resolve) => {
+    rl.question('Enter the authorization code or the redirect URL: ', (answer) => {
       rl.close();
       resolve(answer);
     });
   });
+
+  let code = input;
+  if (input.startsWith('http')) {
+    try {
+      const url = new URL(input);
+      code = url.searchParams.get('code');
+    } catch (err) {
+      console.error(`\nError parsing URL: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  if (!code) {
+    console.error(`\nError: No authorization code found in the input.`);
+    process.exit(1);
+  }
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
