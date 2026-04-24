@@ -4,7 +4,7 @@ import * as fsPromises from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ToolDef, ToolContext, ExecuteResult } from "./types.js";
-import { globSync } from "glob";
+import * as glob from "glob";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,7 +41,7 @@ export const GlobTool: ToolDef = {
       throw new Error(`glob path must be a directory: ${absoluteSearchDir}`);
     }
 
-    const files = globSync(params.pattern, { 
+    const files = glob.globSync(params.pattern, { 
       cwd: absoluteSearchDir, 
       absolute: true,
       nodir: true 
