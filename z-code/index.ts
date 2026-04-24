@@ -32,6 +32,7 @@ Options:
   -m, --model <model>       Specify the Gemini model (default: GEMINI_MODEL env var or gemini-2.5-flash)
   -p, --prompt <path>       Specify a custom system prompt file (default: prompts/default.txt)
   -s, --session <id>        Resume a session with the given ID
+  -c, --continue              Resume the last session or create a new one
   
 Commands:
   session list              List all sessions (newest first)
@@ -48,6 +49,7 @@ function parseArgs(args: string[]) {
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     promptPath: "prompts/default.txt",
     sessionId: null,
+    continueSession: false,
   };
   const positional: string[] = [];
 
@@ -69,6 +71,8 @@ function parseArgs(args: string[]) {
       options.promptPath = args[++i];
     } else if (arg === "-s" || arg === "--session") {
       options.sessionId = args[++i];
+    } else if (arg === "-c" || arg === "--continue") {
+      options.continueSession = true;
     } else if (arg.startsWith("-")) {
       positional.push(arg);
     } else {
@@ -175,6 +179,27 @@ async function main() {
     }
   }
 
+  if (options.continueSession && !options.sessionId) {
+    try {
+      const entries = await fs.readdir(SESSION_ROOT);
+      if (entries.length > 0) {
+        const sessionData = await Promise.all(
+          entries.map(async (id) => {
+            const stats = await fs.stat(path.join(SESSION_ROOT, id));
+            return { id, mtime: stats.mtime };
+          })
+        );
+        sessionData.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+        options.sessionId = sessionData[0].id;
+      }
+    } catch (e: any) {
+      if (e.code !== "ENOENT") {
+        console.error(chalk.red(`Error finding last session: ${e.message}`));
+        process.exit(1);
+      }
+    }
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -204,6 +229,7 @@ async function main() {
   }];
 
   const sessionId = options.sessionId || crypto.randomUUID();
+  console.log(chalk.gray(`Session ID: ${sessionId}`));
   const sessionDir = path.join(SESSION_ROOT, sessionId);
   let systemPrompt: string;
 
@@ -371,8 +397,6 @@ async function main() {
       await fs.writeFile(path.join(sessionDir, "history.json"), JSON.stringify(messages, null, 2));
     }
   }
-
-  console.log(chalk.gray(`Session ID: ${sessionId}`));
 }
 
 main().catch(console.error);
