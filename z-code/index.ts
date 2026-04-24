@@ -67,22 +67,22 @@ async function main() {
   await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
 
   const args = process.argv.slice(2);
-  let quietLevel = -1;
-  let qValueIndex = -1;
-  const qIndex = args.findIndex(arg => arg === "-q" || arg === "--quiet");
-  if (qIndex !== -1) {
-    const nextArg = args[qIndex + 1];
+  let verbosityLevel = 0;
+  let vValueIndex = -1;
+  const vIndex = args.findIndex(arg => arg === "-v" || arg === "--verbose");
+  if (vIndex !== -1) {
+    const nextArg = args[vIndex + 1];
     if (nextArg && /^\d+$/.test(nextArg)) {
-      quietLevel = parseInt(nextArg, 10);
-      qValueIndex = qIndex + 1;
+      verbosityLevel = parseInt(nextArg, 10);
+      vValueIndex = vIndex;
     } else {
-      quietLevel = 0;
+      verbosityLevel = 0;
     }
   }
   const userQuery = args
     .filter((arg, index) => {
       if (arg.startsWith("-")) return false;
-      if (index === qValueIndex) return false;
+      if (index === vValueIndex) return false;
       return true;
     })
     .join(" ");
@@ -147,7 +147,7 @@ async function main() {
     for (const part of message.parts || []) {
       if (part.text) {
         if (part.thought) {
-          if (quietLevel < 1) {
+          if (verbosityLevel > 0) {
             console.log(chalk.gray(part.text));
           }
         } else if (toolCalls.length > 0) {
@@ -172,7 +172,7 @@ async function main() {
       try {
         const result = await registry.execute(toolId, args as any, ctx);
         if (spinner) spinner.succeed(`Executed ${chalk.cyan(toolId)}`);
-        if (quietLevel < 0) {
+        if (verbosityLevel > 1) {
           console.log(chalk.blue(`${result.output.substring(0, 500)}${result.output.length > 500 ? "..." : ""}`));
         }
         
@@ -184,7 +184,7 @@ async function main() {
         });
       } catch (e: any) {
         if (spinner) spinner.fail(`Error executing ${chalk.cyan(toolId)}`);
-        if (quietLevel < 0) {
+        if (verbosityLevel > 1) {
           console.log(chalk.red(`Error: ${e.message}`));
         }
         
