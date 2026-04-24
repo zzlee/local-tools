@@ -83,7 +83,7 @@ async function main() {
   dotenv.config({quiet: true});
   dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
  
-  const SESSION_ROOT = path.join(os.homedir(), ".local-tools", "sessions");
+  const SESSION_ROOT = path.join(process.cwd(), ".z-code-sessions");
  
   async function listSessions() {
     try {
@@ -204,7 +204,7 @@ async function main() {
   }];
 
   const sessionId = options.sessionId || crypto.randomUUID();
-  const sessionDir = path.join(os.homedir(), ".local-tools", "sessions", sessionId);
+  const sessionDir = path.join(SESSION_ROOT, sessionId);
   let systemPrompt: string;
 
   if (options.sessionId) {
