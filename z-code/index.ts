@@ -74,20 +74,36 @@ async function main() {
     const nextArg = args[vIndex + 1];
     if (nextArg && /^\d+$/.test(nextArg)) {
       verbosityLevel = parseInt(nextArg, 10);
-      vValueIndex = vIndex;
+      vValueIndex = vIndex + 1;
     } else {
       verbosityLevel = 0;
     }
   }
-  const userQuery = args
-    .filter((arg, index) => {
-      if (arg.startsWith("-")) return false;
-      if (index === vValueIndex) return false;
-      return true;
-    })
-    .join(" ");
+  const cliArgs = args.filter((arg, index) => {
+    if (arg.startsWith("-")) return false;
+    if (index === vValueIndex) return false;
+    return true;
+  });
+  let userQuery = "";
+  if (!process.stdin.isTTY) {
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of process.stdin) {
+        chunks.push(Buffer.from(chunk));
+      }
+      const pipedData = Buffer.concat(chunks).toString("utf8");
+      if (pipedData) {
+        userQuery = pipedData + (cliArgs.length > 0 ? "\n\n" + cliArgs.join(" ") : "");
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
   if (!userQuery) {
-    console.error("Please provide a query as a command line argument");
+    userQuery = cliArgs.join(" ");
+  }
+  if (!userQuery) {
+    console.error("Please provide a query as a command line argument or via stdin");
     process.exit(1);
   }
 
