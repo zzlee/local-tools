@@ -16,7 +16,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "cd z-code && npm run build"
+    "build": "cd z-code && npm run build",
+    "z-code": "node ./z-code/dist/index.js"
   },
   "keywords": [],
   "author": "",

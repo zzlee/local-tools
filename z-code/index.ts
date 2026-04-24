@@ -7,7 +7,7 @@ import * as os from "node:os";
 import * as crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import "dotenv/config";
+import * as dotenv from "dotenv";
 import chalk from "chalk";
 import ora from "ora";
 import { 
@@ -23,6 +23,8 @@ import {
 import type { ToolContext } from "./packages/tools/index.js";
 
 async function main() {
+  dotenv.config({quiet: true});
+  dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const apiKey = process.env.GEMINI_API_KEY;
 
