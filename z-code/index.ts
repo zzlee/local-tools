@@ -33,6 +33,11 @@ Options:
   -p, --prompt <path>       Specify a custom system prompt file (default: prompts/default.txt)
   -s, --session <id>        Resume a session with the given ID
   
+Commands:
+  session list              List all sessions (newest first)
+  session delete <id>       Delete a specific session
+  session delete-all        Delete all sessions
+  
 You can also provide the query via stdin.
 `);
 }
@@ -77,12 +82,97 @@ function parseArgs(args: string[]) {
 async function main() {
   dotenv.config({quiet: true});
   dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
+ 
+  const SESSION_ROOT = path.join(os.homedir(), ".local-tools", "sessions");
+ 
+  async function listSessions() {
+    try {
+      const entries = await fs.readdir(SESSION_ROOT);
+      const sessionData = await Promise.all(
+        entries.map(async (id) => {
+          const stats = await fs.stat(path.join(SESSION_ROOT, id));
+          return { id, mtime: stats.mtime };
+        })
+      );
+ 
+      sessionData.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+ 
+      if (sessionData.length === 0) {
+        console.log("No sessions found.");
+        return;
+      }
+ 
+      console.log(chalk.bold("\nActive Sessions (newest first):"));
+      console.log("--------------------------------------------------------------------------------");
+      for (const { id, mtime } of sessionData) {
+        console.log(`${chalk.cyan(id).padEnd(36)} ${mtime.toLocaleString()}`);
+      }
+      console.log("--------------------------------------------------------------------------------\n");
+    } catch (e: any) {
+      if (e.code === "ENOENT") {
+        console.log("No sessions found.");
+      } else {
+        console.error(chalk.red(`Error listing sessions: ${e.message}`));
+      }
+    }
+  }
+ 
+  async function deleteSession(id: string) {
+    const sessionDir = path.join(SESSION_ROOT, id);
+    try {
+      await fs.access(sessionDir);
+      await fs.rm(sessionDir, { recursive: true, force: true });
+      console.log(chalk.green(`Session ${id} deleted.`));
+    } catch (e: any) {
+      if (e.code === "ENOENT") {
+        console.error(chalk.red(`Session ${id} not found.`));
+      } else {
+        console.error(chalk.red(`Error deleting session ${id}: ${e.message}`));
+      }
+    }
+  }
+ 
+  async function deleteAllSessions() {
+    try {
+      await fs.rm(SESSION_ROOT, { recursive: true, force: true });
+      console.log(chalk.green("All sessions deleted."));
+    } catch (e: any) {
+      if (e.code === "ENOENT") {
+        console.log("No sessions to delete.");
+      } else {
+        console.error(chalk.red(`Error deleting all sessions: ${e.message}`));
+      }
+    }
+  }
+ 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const { options, positional } = parseArgs(process.argv.slice(2));
 
   if (options.help) {
     printHelp();
     process.exit(0);
+  }
+
+  if (positional[0] === "session") {
+    const subCommand = positional[1];
+    if (subCommand === "list") {
+      await listSessions();
+      process.exit(0);
+    } else if (subCommand === "delete") {
+      const id = positional[2];
+      if (!id) {
+        console.error(chalk.red("Please provide a session ID to delete. Usage: z-code session delete <id>"));
+        process.exit(1);
+      }
+      await deleteSession(id);
+      process.exit(0);
+    } else if (subCommand === "delete-all") {
+      await deleteAllSessions();
+      process.exit(0);
+    } else {
+      console.error(chalk.red(`Unknown session command: ${subCommand}. Use 'list', 'delete <id>', or 'delete-all'.`));
+      process.exit(1);
+    }
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
