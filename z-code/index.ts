@@ -22,10 +22,69 @@ import {
 } from "./packages/tools/index.js";
 import type { ToolContext } from "./packages/tools/index.js";
 
+function printHelp() {
+  console.log(`
+Usage: z-code [options] [query]
+
+Options:
+  -h, --help                Show this help message
+  -v, --verbose [level]     Set verbosity level (0: silent, 1: thoughts, 2: tool output)
+  -m, --model <model>       Specify the Gemini model (default: GEMINI_MODEL env var or gemini-2.5-flash)
+  -p, --prompt <path>       Specify a custom system prompt file (default: prompts/default.txt)
+  -s, --session <id>        Resume a session with the given ID
+  
+You can also provide the query via stdin.
+`);
+}
+
+function parseArgs(args: string[]) {
+  const options: any = {
+    verbosity: 0,
+    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    promptPath: "prompts/default.txt",
+    sessionId: null,
+  };
+  const positional: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "-h" || arg === "--help") {
+      options.help = true;
+    } else if (arg === "-v" || arg === "--verbose") {
+      const next = args[i + 1];
+      if (next && /^\d+$/.test(next)) {
+        options.verbosity = parseInt(next, 10);
+        i++;
+      } else {
+        options.verbosity = 1;
+      }
+    } else if (arg === "-m" || arg === "--model") {
+      options.model = args[++i];
+    } else if (arg === "-p" || arg === "--prompt") {
+      options.promptPath = args[++i];
+    } else if (arg === "-s" || arg === "--session") {
+      options.sessionId = args[++i];
+    } else if (arg.startsWith("-")) {
+      positional.push(arg);
+    } else {
+      positional.push(arg);
+    }
+  }
+
+  return { options, positional };
+}
+
 async function main() {
   dotenv.config({quiet: true});
   dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const { options, positional } = parseArgs(process.argv.slice(2));
+
+  if (options.help) {
+    printHelp();
+    process.exit(0);
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -54,36 +113,30 @@ async function main() {
     }))
   }];
 
-  const defaultPrompt = await fs.readFile(path.join(__dirname, "prompts", "default.txt"), "utf8");
-  const toolDescriptions = registry.listTools()
-    .map(t => `${t.id}: ${t.description}`)
-    .join("\n");
-
-  const systemPrompt = `${defaultPrompt}\n\nAvailable Tools:\n${toolDescriptions}`;
-
-  const sessionId = crypto.randomUUID();
+  const sessionId = options.sessionId || crypto.randomUUID();
   const sessionDir = path.join(os.homedir(), ".local-tools", "sessions", sessionId);
-  await fs.mkdir(sessionDir, { recursive: true });
-  await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
+  let systemPrompt: string;
 
-  const args = process.argv.slice(2);
-  let verbosityLevel = 0;
-  let vValueIndex = -1;
-  const vIndex = args.findIndex(arg => arg === "-v" || arg === "--verbose");
-  if (vIndex !== -1) {
-    const nextArg = args[vIndex + 1];
-    if (nextArg && /^\d+$/.test(nextArg)) {
-      verbosityLevel = parseInt(nextArg, 10);
-      vValueIndex = vIndex + 1;
-    } else {
-      verbosityLevel = 0;
+  if (options.sessionId) {
+    try {
+      systemPrompt = await fs.readFile(path.join(sessionDir, "system_prompt.txt"), "utf8");
+    } catch (e) {
+      console.error(chalk.red(`Session ${sessionId} not found or missing system prompt`));
+      process.exit(1);
     }
+  } else {
+    const promptPath = options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath)
+      ? options.promptPath
+      : path.join(__dirname, options.promptPath);
+    const defaultPrompt = await fs.readFile(promptPath, "utf8");
+    const toolDescriptions = registry.listTools()
+      .map(t => `${t.id}: ${t.description}`)
+      .join("\n");
+    systemPrompt = `${defaultPrompt}\n\nAvailable Tools:\n${toolDescriptions}`;
+    await fs.mkdir(sessionDir, { recursive: true });
+    await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
   }
-  const cliArgs = args.filter((arg, index) => {
-    if (arg.startsWith("-")) return false;
-    if (index === vValueIndex) return false;
-    return true;
-  });
+
   let userQuery = "";
   if (!process.stdin.isTTY) {
     try {
@@ -93,23 +146,30 @@ async function main() {
       }
       const pipedData = Buffer.concat(chunks).toString("utf8");
       if (pipedData) {
-        userQuery = pipedData + (cliArgs.length > 0 ? "\n\n" + cliArgs.join(" ") : "");
+        userQuery = pipedData + (positional.length > 0 ? "\n\n" + positional.join(" ") : "");
       }
     } catch (e) {
       // ignore
     }
   }
   if (!userQuery) {
-    userQuery = cliArgs.join(" ");
+    userQuery = positional.join(" ");
   }
   if (!userQuery) {
     console.error("Please provide a query as a command line argument or via stdin");
     process.exit(1);
   }
 
-  let messages: any[] = [
-    { role: "user", parts: [{ text: userQuery }] },
-  ];
+  let messages: any[] = [];
+  if (options.sessionId) {
+    try {
+      const historyData = await fs.readFile(path.join(sessionDir, "history.json"), "utf8");
+      messages = JSON.parse(historyData);
+    } catch (e) {
+      // ignore
+    }
+  }
+  messages.push({ role: "user", parts: [{ text: userQuery }] });
 
   const ctx: ToolContext = {
     sessionID: sessionId,
@@ -125,7 +185,7 @@ async function main() {
     while (true) {
       try {
         response = await ai.models.generateContent({
-          model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+          model: options.model,
           contents: messages,
           config: {
             tools: tools,
@@ -163,7 +223,7 @@ async function main() {
     for (const part of message.parts || []) {
       if (part.text) {
         if (part.thought) {
-          if (verbosityLevel > 0) {
+          if (options.verbosity > 0) {
             console.log(chalk.gray(part.text));
           }
         } else if (toolCalls.length > 0) {
@@ -188,7 +248,7 @@ async function main() {
       try {
         const result = await registry.execute(toolId, args as any, ctx);
         if (spinner) spinner.succeed(`Executed ${chalk.cyan(toolId)}`);
-        if (verbosityLevel > 1) {
+        if (options.verbosity > 1) {
           console.log(chalk.blue(`${result.output.substring(0, 500)}${result.output.length > 500 ? "..." : ""}`));
         }
         
@@ -200,7 +260,7 @@ async function main() {
         });
       } catch (e: any) {
         if (spinner) spinner.fail(`Error executing ${chalk.cyan(toolId)}`);
-        if (verbosityLevel > 1) {
+        if (options.verbosity > 1) {
           console.log(chalk.red(`Error: ${e.message}`));
         }
         
