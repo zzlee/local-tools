@@ -127,8 +127,8 @@ function stripHeredoc(input: string): string {
 }
 
 export function parsePatch(patchText: string): { hunks: Hunk[] } {
-  const cleaned = stripHeredoc(patchText.trim()).replace(/\\r\\n/g, "\\n").replace(/\\r/g, "\\n");
-  const lines = cleaned.split("\\n");
+  const cleaned = stripHeredoc(patchText.trim()).replace(/\\r\n/g, "\n").replace(/\\r/g, "\n");
+  const lines = cleaned.split("\n");
   const hunks: Hunk[] = [];
   const beginMarker = "*** Begin Patch";
   const endMarker = "*** End Patch";
@@ -217,7 +217,7 @@ function computeReplacements(originalLines: string[], filePath: string, chunks: 
     if (chunk.change_context) {
       const contextIdx = seekSequence(originalLines, [chunk.change_context], lineIndex);
       if (contextIdx === -1) throw new Error(`Failed to find context '${chunk.change_context}' in ${filePath}`);
-      lineIndex = contextIdx + 1;
+      lineIndex = contextIdx;
     }
     if (chunk.old_lines.length === 0) {
       const insertionIdx = originalLines.length > 0 && originalLines[originalLines.length - 1] === "" ? originalLines.length - 1 : originalLines.length;
@@ -236,7 +236,7 @@ function computeReplacements(originalLines: string[], filePath: string, chunks: 
       replacements.push([found, pattern.length, newSlice]);
       lineIndex = found + pattern.length;
     } else {
-      throw new Error(`Failed to find expected lines in ${filePath}:\\n${chunk.old_lines.join("\\n")}`);
+      throw new Error(`Failed to find expected lines in ${filePath}:\n${chunk.old_lines.join("\n")}`);
     }
   }
   replacements.sort((a, b) => a[0] - b[0]);
@@ -256,18 +256,18 @@ function applyReplacements(lines: string[], replacements: Array<[number, number,
 function generateUnifiedDiff(oldContent: string, newContent: string): string {
   const oldLines = oldContent.split("\n");
   const newLines = newContent.split("\n");
-  let diff = "@@ -1 +1 @@\\n";
+  let diff = "@@ -1 +1 @@\n";
   const maxLen = Math.max(oldLines.length, newLines.length);
   let hasChanges = false;
   for (let i = 0; i < maxLen; i++) {
     const oldLine = oldLines[i] || "";
     const newLine = newLines[i] || "";
     if (oldLine !== newLine) {
-      if (oldLine) diff += `-${oldLine}\\n`;
-      if (newLine) diff += `+${newLine}\\n`;
+      if (oldLine) diff += `-${oldLine}\n`;
+      if (newLine) diff += `+${newLine}\n`;
       hasChanges = true;
     } else if (oldLine) {
-      diff += ` ${oldLine}\\n`;
+      diff += ` ${oldLine}\n`;
     }
   }
   return hasChanges ? diff : "";
@@ -306,7 +306,7 @@ export const ApplyPatchTool: ToolDef = {
       switch (hunk.type) {
         case "add": {
           const oldContent = "";
-          const newContent = hunk.contents.length === 0 || hunk.contents.endsWith("\\n") ? hunk.contents : `${hunk.contents}\\n`;
+          const newContent = hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`;
           const next = Bom.split(newContent);
           const diff = createTwoFilesPatch(filePath, filePath, oldContent, next.text);
           let additions = 0, deletions = 0;
@@ -315,7 +315,7 @@ export const ApplyPatchTool: ToolDef = {
             if (change.removed) deletions += change.count || 0;
           }
           fileChanges.push({ filePath, oldContent, newContent: next.text, type: "add", diff, additions, deletions, bom: next.bom });
-          totalDiff += diff + "\\n";
+          totalDiff += diff + "\n";
           break;
         }
         case "update": {
@@ -341,16 +341,16 @@ export const ApplyPatchTool: ToolDef = {
           }
           const movePath = hunk.move_path ? path.resolve(process.cwd(), hunk.move_path) : undefined;
           fileChanges.push({ filePath, oldContent, newContent, type: hunk.move_path ? "move" : "update", movePath, diff, additions, deletions, bom });
-          totalDiff += diff + "\\n";
+          totalDiff += diff + "\n";
           break;
         }
         case "delete": {
           const source = Bom.split(await fsPromises.readFile(filePath, "utf-8"));
           const contentToDelete = source.text;
           const deleteDiff = createTwoFilesPatch(filePath, filePath, contentToDelete, "");
-          const deletions = contentToDelete.split("\\n").length;
+          const deletions = contentToDelete.split("\n").length;
           fileChanges.push({ filePath, oldContent: contentToDelete, newContent: "", type: "delete", diff: deleteDiff, additions: 0, deletions, bom: source.bom });
-          totalDiff += deleteDiff + "\\n";
+          totalDiff += deleteDiff + "\n";
           break;
         }
       }
@@ -391,7 +391,7 @@ export const ApplyPatchTool: ToolDef = {
     });
     return { 
       title: "Apply Patch",
-      output: `Success. Updated the following files:\\n${summaryLines.join("\\n")}`,
+      output: `Success. Updated the following files:\n${summaryLines.join("\n")}`,
       metadata: {}
     };
   }
