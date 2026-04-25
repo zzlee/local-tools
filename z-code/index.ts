@@ -293,6 +293,10 @@ async function main() {
     agent: "assistant",
   };
 
+  let totalPromptTokens = 0;
+  let totalCandidatesTokens = 0;
+  let totalTokens = 0;
+
   while (true) {
     let response;
     let retries = 0;
@@ -308,6 +312,11 @@ async function main() {
             systemInstruction: { parts: [{ text: systemPrompt }] }
           }
         });
+        if (response.usageMetadata) {
+          totalPromptTokens += response.usageMetadata.promptTokenCount || 0;
+          totalCandidatesTokens += response.usageMetadata.candidatesTokenCount || 0;
+          totalTokens += response.usageMetadata.totalTokenCount || 0;
+        }
         break;
       } catch (e: any) {
         if (e.status && retries < maxRetries) {
@@ -397,6 +406,8 @@ async function main() {
       await fs.writeFile(path.join(sessionDir, "history.json"), JSON.stringify(messages, null, 2));
     }
   }
+
+  console.log(chalk.gray(`\nTokens: Prompt: ${totalPromptTokens}, Candidates: ${totalCandidatesTokens}, Total: ${totalTokens}`));
 }
 
 main().catch(console.error);
