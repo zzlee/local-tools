@@ -28,7 +28,7 @@ Usage: z-code [options] [query]
 
 Options:
   -h, --help                Show this help message
-  -v, --verbose [level]     Set verbosity level (0: silent, 1: thoughts, 2: tool output)
+  -v, --verbose [level]     Set verbosity level (0: thinking and tool progress, 1: tool progress, 2: tool output)
   -m, --model <model>       Specify the Gemini model (default: GEMINI_MODEL env var or gemini-2.5-flash)
   -p, --prompt <path>       Specify a custom system prompt file (default: prompts/default.txt)
   -s, --session <id>        Resume a session with the given ID
@@ -303,7 +303,11 @@ async function main() {
     const maxRetries = 3;
 
     while (true) {
+      let thinkingSpinner;
       try {
+        if (options.verbosity === 0 || options.verbosity >= 2) {
+          thinkingSpinner = ora("Thinking...").start();
+        }
         response = await ai.models.generateContent({
           model: options.model,
           contents: messages,
@@ -312,6 +316,7 @@ async function main() {
             systemInstruction: { parts: [{ text: systemPrompt }] }
           }
         });
+        if (thinkingSpinner) thinkingSpinner.stop();
         if (response.usageMetadata) {
           totalPromptTokens += response.usageMetadata.promptTokenCount || 0;
           totalCandidatesTokens += response.usageMetadata.candidatesTokenCount || 0;
@@ -319,6 +324,8 @@ async function main() {
         }
         break;
       } catch (e: any) {
+        if (thinkingSpinner) thinkingSpinner.fail("Thinking failed");
+
         if (e.status && retries < maxRetries) {
           retries++;
           console.log(chalk.yellow(`API Error ${e.status}, retrying in 3s... (${retries}/${maxRetries})`));
