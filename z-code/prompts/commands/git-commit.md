@@ -1,13 +1,11 @@
 ---
-description: Stage changes and commit
+description: git commit with concise messages
 ---
 
-Generates git commit messages based on git diffs.
+`git commit` with message based on `git diff --staged`.
 Follow these rules:
 1. Use the Conventional Commits format (e.g., 'feat: ...', 'fix: ...', 'docs: ...').
 2. The first line MUST be a concise summary, ideally under 50 characters.
 3. If the diff is large or complex, provide a detailed body (separated by a blank line) explaining the "why" and "how" of the changes.
 4. For small, simple diffs, only provide the single-line summary.
 5. Provide ONLY the commit message, nothing else.
-
-Stage all changes and commit them.
