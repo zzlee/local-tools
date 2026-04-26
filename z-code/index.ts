@@ -26,6 +26,35 @@ import type { ToolContext } from "./packages/tools/index.js";
 const COMMANDS_DIR = "prompts/commands";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+async function getBasePrompt(optionsPromptPath: string, explicitPromptPath?: string): Promise<string> {
+  if (explicitPromptPath) {
+    const resolvedPath = path.isAbsolute(explicitPromptPath)
+      ? explicitPromptPath
+      : path.join(process.cwd(), explicitPromptPath);
+    return await fs.readFile(resolvedPath, "utf8");
+  }
+
+  if (optionsPromptPath !== "prompts/default.txt") {
+    const resolvedPath = path.isAbsolute(optionsPromptPath)
+      ? optionsPromptPath
+      : path.join(process.cwd(), optionsPromptPath);
+    return await fs.readFile(resolvedPath, "utf8");
+  }
+
+  // Check for AGENTS.md in process pwd
+  const agentsPath = path.join(process.cwd(), "AGENTS.md");
+  try {
+    await fs.access(agentsPath);
+    return await fs.readFile(agentsPath, "utf8");
+  } catch (e: any) {
+    // ignore
+  }
+
+  // Load default prompt
+  const resolvedPath = path.join(__dirname, "prompts/default.txt");
+  return await fs.readFile(resolvedPath, "utf8");
+}
+
 function printHelp() {
   console.log(`
 Usage: z-code [options] [query]
@@ -262,12 +291,8 @@ async function main() {
       }
     }
 
-    const resolvedPromptPath = promptPath 
-      ? (promptPath.startsWith("/") || path.isAbsolute(promptPath) ? promptPath : path.join(process.cwd(), promptPath))
-      : (options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath) ? options.promptPath : path.join(__dirname, options.promptPath));
-
     try {
-      const promptContent = await fs.readFile(resolvedPromptPath, "utf8");
+      const promptContent = await getBasePrompt(options.promptPath, promptPath);
       const toolDescriptions = registry.listTools()
         .map(t => `${t.id}: ${t.description}`)
         .join("\n");
@@ -450,10 +475,7 @@ async function main() {
       process.exit(1);
     }
   } else {
-    const promptPath = options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath)
-      ? options.promptPath
-      : path.join(__dirname, options.promptPath);
-    const defaultPrompt = await fs.readFile(promptPath, "utf8");
+    const defaultPrompt = await getBasePrompt(options.promptPath);
     const toolDescriptions = registry.listTools()
       .map(t => `${t.id}: ${t.description}`)
       .join("\n");
