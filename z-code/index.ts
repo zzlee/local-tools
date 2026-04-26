@@ -87,7 +87,7 @@ async function main() {
   dotenv.config({quiet: true});
   dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
  
-  const SESSION_ROOT = path.join(process.cwd(), ".z-code-sessions");
+  const SESSION_ROOT = path.join(process.cwd(), ".z-code", "sessions");
  
   async function listSessions() {
     try {
