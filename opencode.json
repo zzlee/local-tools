@@ -1,16 +1,4 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "mcp-gemini": {
-      "type": "local",
-      "command": ["mcp-gemini"],
-      "enabled": true
-    },
-    "mcp-gmail": {
-      "type": "local",
-      "command": ["mcp-gmail"],
-      "enabled": true
-    }
-  }
+  "$schema": "https://opencode.ai/config.json"
 }
 

@@ -36,6 +36,7 @@ Options:
   
 Commands:
   session list              List all sessions (newest first)
+  session spawn <id> [prompt]  Pre-spawn a session with a system prompt
   session delete <id>       Delete a specific session
   session delete-all        Delete all sessions
   
@@ -148,9 +149,53 @@ async function main() {
       }
     }
   }
+
+  async function spawnSession(id: string, promptPath?: string) {
+    const sessionDir = path.join(SESSION_ROOT, id);
+    try {
+      await fs.access(sessionDir);
+      console.error(chalk.red(`Session ${id} already exists.`));
+      process.exit(1);
+    } catch (e: any) {
+      if (e.code !== "ENOENT") {
+        console.error(chalk.red(`Error checking session existence: ${e.message}`));
+        process.exit(1);
+      }
+    }
+
+    const resolvedPromptPath = promptPath 
+      ? (promptPath.startsWith("/") || path.isAbsolute(promptPath) ? promptPath : path.join(process.cwd(), promptPath))
+      : (options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath) ? options.promptPath : path.join(__dirname, options.promptPath));
+
+    try {
+      const promptContent = await fs.readFile(resolvedPromptPath, "utf8");
+      const toolDescriptions = registry.listTools()
+        .map(t => `${t.id}: ${t.description}`)
+        .join("\n");
+      const systemPrompt = `${promptContent}\n\nAvailable Tools:\n${toolDescriptions}`;
+
+      await fs.mkdir(sessionDir, { recursive: true });
+      await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
+      await fs.writeFile(path.join(sessionDir, "history.json"), "[]");
+
+      console.log(chalk.green(`Session ${id} spawned successfully.`));
+    } catch (e: any) {
+      console.error(chalk.red(`Error spawning session: ${e.message}`));
+      process.exit(1);
+    }
+  }
  
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const { options, positional } = parseArgs(process.argv.slice(2));
+
+  const registry = new ToolRegistry();
+  registry.register(ReadTool);
+  registry.register(BashTool);
+  registry.register(GlobTool);
+  registry.register(EditTool);
+  registry.register(GrepTool);
+  registry.register(WriteTool);
+  registry.register(ApplyPatchTool);
 
   if (options.help) {
     printHelp();
@@ -161,6 +206,15 @@ async function main() {
     const subCommand = positional[1];
     if (subCommand === "list") {
       await listSessions();
+      process.exit(0);
+    } else if (subCommand === "spawn") {
+      const id = positional[2];
+      const promptPath = positional[3];
+      if (!id) {
+        console.error(chalk.red("Please provide a session ID to spawn. Usage: z-code session spawn <id> [prompt_path]"));
+        process.exit(1);
+      }
+      await spawnSession(id, promptPath);
       process.exit(0);
     } else if (subCommand === "delete") {
       const id = positional[2];
@@ -174,7 +228,7 @@ async function main() {
       await deleteAllSessions();
       process.exit(0);
     } else {
-      console.error(chalk.red(`Unknown session command: ${subCommand}. Use 'list', 'delete <id>', or 'delete-all'.`));
+      console.error(chalk.red(`Unknown session command: ${subCommand}. Use 'list', 'spawn <id> [prompt]', 'delete <id>', or 'delete-all'.`));
       process.exit(1);
     }
   }
@@ -210,15 +264,6 @@ async function main() {
   const ai = new GoogleGenAI({
     apiKey: apiKey,
   });
-
-  const registry = new ToolRegistry();
-  registry.register(ReadTool);
-  registry.register(BashTool);
-  registry.register(GlobTool);
-  registry.register(EditTool);
-  registry.register(GrepTool);
-  registry.register(WriteTool);
-  registry.register(ApplyPatchTool);
 
   const tools: any[] = [{
     functionDeclarations: registry.listTools().map(t => ({
