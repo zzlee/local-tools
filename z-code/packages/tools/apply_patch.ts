@@ -132,7 +132,7 @@ function applyUnifiedDiff(content: string, chunks: UnifiedDiffChunk[]): string {
     }
 
     if (matchStart === -1) {
-      throw new Error(\`Could not find hunk at line \${chunk.oldStart} with context\`);
+      throw new Error(`Could not find hunk at line ${chunk.oldStart} with context`);
     }
 
     const newLines: string[] = [];
@@ -168,7 +168,7 @@ export const ApplyPatchTool: ToolDef = {
       const parseResult = parseUnifiedDiff(params.patchText);
       hunks = parseResult.hunks;
     } catch (error: any) {
-      throw new Error(\`apply_patch verification failed: \${error.message}\`);
+      throw new Error(`apply_patch verification failed: ${error.message}`);
     }
     if (hunks.length === 0) {
       throw new Error("apply_patch verification failed: no hunks found");
@@ -180,7 +180,7 @@ export const ApplyPatchTool: ToolDef = {
       switch (hunk.type) {
         case "add": {
           const oldContent = "";
-          const newContent = hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : \`\${hunk.contents}\\n\`;
+           const newContent = hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`;
           const next = Bom.split(newContent);
           const diff = createTwoFilesPatch(filePath, filePath, oldContent, next.text);
           let additions = 0, deletions = 0;
@@ -199,7 +199,7 @@ export const ApplyPatchTool: ToolDef = {
           try {
             newContent = applyUnifiedDiff(oldContent, hunk.chunks);
           } catch (error: any) {
-            throw new Error(\`apply_patch verification failed: \${error.message}\`);
+            throw new Error(`apply_patch verification failed: ${error.message}`);
           }
           const diff = createTwoFilesPatch(filePath, filePath, oldContent, newContent);
           let additions = 0, deletions = 0;
@@ -239,13 +239,13 @@ export const ApplyPatchTool: ToolDef = {
     }
     const summaryLines = fileChanges.map((change) => {
       const rel = path.relative(process.cwd(), change.filePath).replaceAll("\\", "/");
-      if (change.type === "add") return \`A \${rel}\`;
-      if (change.type === "delete") return \`D \${rel}\`;
-      return \`M \${rel}\`;
+       if (change.type === "add") return `A ${rel}`;
+       if (change.type === "delete") return `D ${rel}`;
+       return `M ${rel}`;
     });
     return { 
       title: "Apply Patch",
-      output: \`Success. Updated the following files:\\n\${summaryLines.join("\\n")}\`,
+       output: `Success. Updated the following files:\n${summaryLines.join("\n")}`,
       metadata: {}
     };
   }
