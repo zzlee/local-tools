@@ -1,4 +1,5 @@
 import z from "zod";
+import * as fs from "node:fs";
 import * as path from "path";
 import * as fsPromises from "node:fs/promises";
 import type { ToolDef } from "./types.js";
@@ -389,15 +390,15 @@ function generateUnifiedDiff(oldContent: string, newContent: string): string {
 
 function loadDescription() {
   try {
-    return fsPromises.readFile(path.join(__dirname, "apply_patch.txt"), "utf8");
+    return fs.readFileSync(path.join(__dirname, "apply_patch.txt"), "utf8");
   } catch (e) {
-    return Promise.resolve("Use the apply_patch tool to edit files.");
+    return "Use the apply_patch tool to edit files.";
   }
 }
 
 export const ApplyPatchTool: ToolDef = {
   id: "apply_patch",
-  description: "Use the apply_patch tool to edit files.",
+  description: loadDescription(),
   parameters,
   async execute(params, ctx) {
     if (!params.patchText) throw new Error("patchText is required");
