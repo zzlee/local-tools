@@ -42,6 +42,7 @@ Options:
   
 Commands:
   session list              List all sessions (newest first)
+  session show <id>           Show history of a specific session
   session delete <id>       Delete a specific session
   session delete-all        Delete all sessions
   command list              List available custom command templates
@@ -187,6 +188,64 @@ async function main() {
     }
   }
 
+  async function showSession(id: string) {
+    const sessionDir = path.join(SESSION_ROOT, id);
+    try {
+      const historyData = await fs.readFile(path.join(sessionDir, "history.json"), "utf8");
+      const messages = JSON.parse(historyData);
+      
+      console.log(chalk.bold(`\nSession History: ${id}`));
+      console.log("--------------------------------------------------------------------------------\n");
+      
+      for (const message of messages) {
+        const role = message.role === "model" ? "Assistant" : "User";
+        const roleColor = message.role === "model" ? chalk.green : chalk.cyan;
+        
+        console.log(`${roleColor(chalk.bold(role))}:`);
+        
+        for (const part of message.parts || []) {
+          if (part.text) {
+            if (part.thought) {
+              console.log(chalk.gray(`  ${part.text}`));
+            } else {
+              console.log(part.text);
+            }
+          } else if (part.functionCall) {
+            const { name, args } = part.functionCall;
+             let details = "";
+             if (name === "bash") {
+               details = `${args.description || ""} ${args.command || ""}`;
+             } else if (name === "edit") {
+               details = args.filePath || "";
+             } else if (name === "grep") {
+               details = args.pattern || "";
+             } else if (name === "glob") {
+               details = args.description || args.pattern || "";
+             } else if (name === "read") {
+               details = `${args.filePath || ""} ${args.offset ? `offset=${args.offset}` : ""} ${args.limit ? `limit=${args.limit}` : ""}`;
+             } else if (name === "write") {
+               details = args.filePath || "";
+             }
+             const output = details ? `${name} ${details}` : name;
+             console.log(chalk.yellow(`  Executing ${output.trim()}`));
+          } else if (part.functionResponse) {
+            const { name, response } = part.functionResponse;
+            // console.log(chalk.blue(`  Tool Response from ${name}: ${JSON.stringify(response)}`));
+            console.log(chalk.blue(`  Executed ${name}: ...`));
+          }
+        }
+        console.log(""); // separator between turns
+      }
+      console.log("--------------------------------------------------------------------------------\n");
+    } catch (e: any) {
+      if (e.code === "ENOENT") {
+        console.error(chalk.red(`Session ${id} not found.`));
+      } else {
+        console.error(chalk.red(`Error showing session ${id}: ${e.message}`));
+      }
+    }
+  }
+
   async function spawnSession(id: string, promptPath?: string) {
     const sessionDir = path.join(SESSION_ROOT, id);
     try {
@@ -257,6 +316,14 @@ async function main() {
     const subCommand = positional[1];
     if (subCommand === "list") {
       await listSessions();
+      process.exit(0);
+    } else if (subCommand === "show") {
+      const id = positional[2];
+      if (!id) {
+        console.error(chalk.red("Please provide a session ID to show. Usage: z-code session show <id>"));
+        process.exit(1);
+      }
+      await showSession(id);
       process.exit(0);
     } else if (subCommand === "delete") {
       const id = positional[2];
