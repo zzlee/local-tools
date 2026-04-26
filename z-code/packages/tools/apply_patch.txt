@@ -1,33 +1,29 @@
-Use the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:
+Use the `apply_patch` tool to edit files. It accepts patches in the standard unified diff format.
 
-Each patch starts with `*** Begin Patch` and ends with `*** End Patch`.
-Between these markers, you can specify changes to files:
+A unified diff can contain changes for multiple files. Each file's changes start with:
+--- original_file
++++ modified_file
 
-1. To add a new file:
-*** Add File: path/to/file
-+ line 1
-+ line 2
-+ line 3
+Followed by one or more hunks:
+@@ -old_start,old_len +new_start,new_len @@
+ context line
+-removed line
++added line
+ context line
 
-2. To delete a file:
-*** Delete File: path/to/file
+To add a new file, use `/dev/null` as the original file:
+--- /dev/null
++++ path/to/file
+@@ -0,0 +1,3 @@
++line 1
++line 2
++line 3
 
-3. To update a file:
-*** Update File: path/to/file
-@@ context
-  existing line 1
-- line to remove
-+ line to add
-  existing line 2
+To delete a file, use `/dev/null` as the modified file:
+--- path/to/file
++++ /dev/null
+@@ -1,3 +0,0 @@
+-line 1
+-line 2
+-line 3
 
-You can also move a file during an update:
-*** Update File: old/path/to/file
-*** Move to: new/path/to/file
-@@ context
-...
-
-Marker lines starting with `***` are used to separate different file changes.
-Lines starting with `+` in an 'Add' or 'Update' block are additions.
-Lines starting with `-` in an 'Update' block are removals.
-Lines starting with a space ` ` in an 'Update' block are context lines that must match the original file.
-`*** End of File` can be used in update chunks to anchor the match to the end of the file.
