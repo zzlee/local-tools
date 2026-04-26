@@ -37,6 +37,7 @@ Options:
   -p, --prompt <path>       Specify a custom system prompt file (default: prompts/default.txt)
   -s, --session <id>        Resume a session with the given ID
   -f, --fork                Pre-spawn the session with the system prompt
+  -o, --output <path>       Save the final cleaned output to a file
   -c, --continue            Resume the last session or create a new one:
   --dry-run                 Show expanded prompt for custom commands without executing
   
@@ -61,6 +62,7 @@ function parseArgs(args: string[]) {
     continueSession: false,
     fork: false,
     dryRun: false,
+    output: null,
   };
   const positional: string[] = [];
 
@@ -86,6 +88,8 @@ function parseArgs(args: string[]) {
       options.continueSession = true;
     } else if (arg === "-f" || arg === "--fork") {
       options.fork = true;
+    } else if (arg === "-o" || arg === "--output") {
+      options.output = args[++i];
     } else if (arg === "--dry-run") {
       options.dryRun = true;
     } else {
@@ -282,6 +286,8 @@ async function main() {
  
   const { options, positional } = parseArgs(process.argv.slice(2));
 
+  let finalOutputBuffer = "";
+ 
   // Custom command detection
   if (positional.length > 0) {
     const firstArg = positional[0];
@@ -569,6 +575,9 @@ async function main() {
 
     for (const part of message.parts || []) {
       if (part.text) {
+        if (toolCalls.length === 0 && !part.thought) {
+          finalOutputBuffer += part.text + "\n";
+        }
         if (part.thought) {
           if (options.verbosity > 0) {
             console.log(chalk.gray(part.text));
@@ -629,6 +638,11 @@ async function main() {
     }
   }
 
+  if (options.output) {
+    await fs.writeFile(options.output, finalOutputBuffer, "utf8");
+    console.log(chalk.green(`\nOutput saved to ${options.output}`));
+  }
+ 
   console.log(chalk.gray(`\nTokens: Prompt: ${totalPromptTokens}, Candidates: ${totalCandidatesTokens}, Total: ${totalTokens}`));
 }
 
