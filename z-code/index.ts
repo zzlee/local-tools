@@ -32,11 +32,11 @@ Options:
   -m, --model <model>       Specify the Gemini model (default: GEMINI_MODEL env var or gemini-2.5-flash)
   -p, --prompt <path>       Specify a custom system prompt file (default: prompts/default.txt)
   -s, --session <id>        Resume a session with the given ID
+  -f, --fork                  Pre-spawn the session with the system prompt
   -c, --continue              Resume the last session or create a new one
   
 Commands:
   session list              List all sessions (newest first)
-  session spawn <id> [prompt]  Pre-spawn a session with a system prompt
   session delete <id>       Delete a specific session
   session delete-all        Delete all sessions
   
@@ -51,6 +51,7 @@ function parseArgs(args: string[]) {
     promptPath: "prompts/default.txt",
     sessionId: null,
     continueSession: false,
+    fork: false,
   };
   const positional: string[] = [];
 
@@ -74,6 +75,8 @@ function parseArgs(args: string[]) {
       options.sessionId = args[++i];
     } else if (arg === "-c" || arg === "--continue") {
       options.continueSession = true;
+    } else if (arg === "-f" || arg === "--fork") {
+      options.fork = true;
     } else if (arg.startsWith("-")) {
       positional.push(arg);
     } else {
@@ -154,8 +157,7 @@ async function main() {
     const sessionDir = path.join(SESSION_ROOT, id);
     try {
       await fs.access(sessionDir);
-      console.error(chalk.red(`Session ${id} already exists.`));
-      process.exit(1);
+      return;
     } catch (e: any) {
       if (e.code !== "ENOENT") {
         console.error(chalk.red(`Error checking session existence: ${e.message}`));
@@ -207,15 +209,6 @@ async function main() {
     if (subCommand === "list") {
       await listSessions();
       process.exit(0);
-    } else if (subCommand === "spawn") {
-      const id = positional[2];
-      const promptPath = positional[3];
-      if (!id) {
-        console.error(chalk.red("Please provide a session ID to spawn. Usage: z-code session spawn <id> [prompt_path]"));
-        process.exit(1);
-      }
-      await spawnSession(id, promptPath);
-      process.exit(0);
     } else if (subCommand === "delete") {
       const id = positional[2];
       if (!id) {
@@ -228,7 +221,7 @@ async function main() {
       await deleteAllSessions();
       process.exit(0);
     } else {
-      console.error(chalk.red(`Unknown session command: ${subCommand}. Use 'list', 'spawn <id> [prompt]', 'delete <id>', or 'delete-all'.`));
+      console.error(chalk.red(`Unknown session command: ${subCommand}. Use 'list', 'delete <id>', or 'delete-all'.`));
       process.exit(1);
     }
   }
@@ -274,6 +267,13 @@ async function main() {
   }];
 
   const sessionId = options.sessionId || crypto.randomUUID();
+  if (options.fork) {
+    if (!options.sessionId) {
+      console.error(chalk.red("The -f/--fork flag requires a session ID provided via -s/--session."));
+      process.exit(1);
+    }
+    await spawnSession(options.sessionId, options.promptPath);
+  }
   console.log(chalk.gray(`Session ID: ${sessionId}`));
   const sessionDir = path.join(SESSION_ROOT, sessionId);
   let systemPrompt: string;
