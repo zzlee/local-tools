@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { GoogleGenAI } from "@google/genai";
+import { createAIProvider, Message } from "./packages/ai/index.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -57,6 +57,7 @@ function parseArgs(args: string[]) {
   const options: any = {
     verbosity: 0,
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    provider: "gemini",
     promptPath: "prompts/default.txt",
     sessionId: null,
     continueSession: false,
@@ -80,6 +81,8 @@ function parseArgs(args: string[]) {
       }
     } else if (arg === "-m" || arg === "--model") {
       options.model = args[++i];
+    } else if (arg === "--provider") {
+      options.provider = args[++i];
     } else if (arg === "-p" || arg === "--prompt") {
       options.promptPath = args[++i];
     } else if (arg === "-s" || arg === "--session") {
@@ -411,16 +414,9 @@ async function main() {
     }
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const ai = createAIProvider(options.provider);
 
-  if (!apiKey) {
-    console.error("Missing GEMINI_API_KEY environment variable");
-    process.exit(1);
-  }
 
-  const ai = new GoogleGenAI({
-    apiKey: apiKey,
-  });
 
   const tools: any[] = [{
     functionDeclarations: registry.listTools().map(t => ({
@@ -497,7 +493,7 @@ async function main() {
     process.exit(1);
   }
 
-  let messages: any[] = [];
+  let messages: Message[] = [];
   if (options.sessionId) {
     try {
       const historyData = await fs.readFile(path.join(sessionDir, "history.json"), "utf8");
@@ -529,14 +525,13 @@ async function main() {
         if (options.verbosity === 0 || options.verbosity >= 2) {
           thinkingSpinner = ora("Thinking...").start();
         }
-        response = await ai.models.generateContent({
+        response = await ai.generateContent({
           model: options.model,
-          contents: messages,
-          config: {
-            tools: tools,
-            systemInstruction: { parts: [{ text: systemPrompt }] }
-          }
+          messages: messages,
+          tools: tools,
+          systemInstruction: systemPrompt
         });
+
         if (thinkingSpinner) thinkingSpinner.stop();
         if (response.usageMetadata) {
           totalPromptTokens += response.usageMetadata.promptTokenCount || 0;
@@ -567,22 +562,27 @@ async function main() {
       }
     }
 
-    const message = response.candidates![0].content!;
+    const message = response.message;
     messages.push(message);
     await fs.writeFile(path.join(sessionDir, "history.json"), JSON.stringify(messages, null, 2));
 
-    const toolCalls = response.functionCalls || [];
+    let hasToolCalls = false;
+    let toolCallsPart = message.parts.find((p: any) => p.toolCalls);
+    const toolCalls = toolCallsPart ? toolCallsPart.toolCalls! : [];
+    if (toolCalls.length > 0) {
+      hasToolCalls = true;
+    }
 
     for (const part of message.parts || []) {
-      if (part.text) {
-        if (toolCalls.length === 0 && !part.thought) {
+      if (part.thought) {
+        if (options.verbosity > 0) {
+           console.log(chalk.gray(part.thought));
+        }
+      } else if (part.text) {
+        if (!hasToolCalls) {
           finalOutputBuffer += part.text + "\n";
         }
-        if (part.thought) {
-          if (options.verbosity > 0) {
-            console.log(chalk.gray(part.text));
-          }
-        } else if (toolCalls.length > 0) {
+        if (hasToolCalls) {
           console.log(chalk.yellow(part.text));
         } else {
           console.log(part.text);
@@ -590,7 +590,7 @@ async function main() {
       }
     }
 
-    if (!toolCalls || toolCalls.length === 0) {
+    if (!hasToolCalls) {
       break;
     }
 
@@ -610,6 +610,7 @@ async function main() {
         
         functionResponseParts.push({
           functionResponse: {
+            id: toolCall.id,
             name: toolId,
             response: { output: result.output }
           }
@@ -622,6 +623,7 @@ async function main() {
         
         functionResponseParts.push({
           functionResponse: {
+            id: toolCall.id,
             name: toolId,
             response: { error: e.message }
           }
