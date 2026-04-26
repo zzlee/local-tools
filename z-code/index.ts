@@ -8,6 +8,7 @@ import * as crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import * as dotenv from "dotenv";
+import * as yaml from "js-yaml";
 import chalk from "chalk";
 import ora from "ora";
 import { 
@@ -22,6 +23,9 @@ import {
 } from "./packages/tools/index.js";
 import type { ToolContext } from "./packages/tools/index.js";
 
+const COMMANDS_DIR = "prompts/commands";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 function printHelp() {
   console.log(`
 Usage: z-code [options] [query]
@@ -32,13 +36,16 @@ Options:
   -m, --model <model>       Specify the Gemini model (default: GEMINI_MODEL env var or gemini-2.5-flash)
   -p, --prompt <path>       Specify a custom system prompt file (default: prompts/default.txt)
   -s, --session <id>        Resume a session with the given ID
-  -f, --fork                  Pre-spawn the session with the system prompt
-  -c, --continue              Resume the last session or create a new one
+  -f, --fork                Pre-spawn the session with the system prompt
+  -c, --continue            Resume the last session or create a new one:
+  --dry-run                 Show expanded prompt for custom commands without executing
   
 Commands:
   session list              List all sessions (newest first)
   session delete <id>       Delete a specific session
   session delete-all        Delete all sessions
+  command list              List available custom command templates
+  <command> [args...]       Use a custom command template from prompts/commands/
   
 You can also provide the query via stdin.
 `);
@@ -52,6 +59,7 @@ function parseArgs(args: string[]) {
     sessionId: null,
     continueSession: false,
     fork: false,
+    dryRun: false,
   };
   const positional: string[] = [];
 
@@ -77,14 +85,40 @@ function parseArgs(args: string[]) {
       options.continueSession = true;
     } else if (arg === "-f" || arg === "--fork") {
       options.fork = true;
-    } else if (arg.startsWith("-")) {
-      positional.push(arg);
+    } else if (arg === "--dry-run") {
+      options.dryRun = true;
     } else {
       positional.push(arg);
     }
   }
 
   return { options, positional };
+}
+
+async function expandTemplate(commandName: string, args: string[]): Promise<string | null> {
+  try {
+    const templatePath = path.join(__dirname, COMMANDS_DIR, `${commandName}.md`);
+    await fs.access(templatePath);
+    const content = await fs.readFile(templatePath, "utf8");
+    
+    const match = content.match(/^---\s*([\s\S]*?)\s*---\s*([\s\S]*)$/);
+    if (!match) return null;
+    
+    const yamlContent = match[1];
+    const templateBody = match[2];
+    const metadata = yaml.load(yamlContent) as any;
+    const argumentsDef = metadata.arguments || [];
+    
+    let expandedBody = templateBody;
+    for (let i = 0; i < argumentsDef.length; i++) {
+      const argName = argumentsDef[i].name;
+      const argValue = args[i] || "";
+      expandedBody = expandedBody.replaceAll(`{{${argName}}}`, argValue);
+    }
+    return expandedBody.trim();
+  } catch {
+    return null;
+  }
 }
 
 async function main() {
@@ -187,8 +221,23 @@ async function main() {
     }
   }
  
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const { options, positional } = parseArgs(process.argv.slice(2));
+
+  // Custom command detection
+  if (positional.length > 0) {
+    const firstArg = positional[0];
+    if (firstArg.startsWith("/")) {
+      const commandName = firstArg.slice(1);
+      const commandPath = path.join(__dirname, COMMANDS_DIR, `${commandName}.md`);
+      try {
+        await fs.access(commandPath);
+        options.customCommand = commandName;
+        options.customArgs = positional.slice(1);
+      } catch {
+        // Not a custom command, keep it as part of the query
+      }
+    }
+  }
 
   const registry = new ToolRegistry();
   registry.register(ReadTool);
@@ -220,8 +269,50 @@ async function main() {
     } else if (subCommand === "delete-all") {
       await deleteAllSessions();
       process.exit(0);
+    } else if (subCommand === "delete-all") {
+      await deleteAllSessions();
+      process.exit(0);
     } else {
       console.error(chalk.red(`Unknown session command: ${subCommand}. Use 'list', 'delete <id>', or 'delete-all'.`));
+      process.exit(1);
+    }
+  }
+
+  if (positional[0] === "command" && positional[1] === "list") {
+    try {
+      const entries = await fs.readdir(path.join(__dirname, COMMANDS_DIR));
+      const commandsFiles = entries.filter(f => f.endsWith(".md"));
+      
+      if (commandsFiles.length === 0) {
+        console.log("No custom commands found in " + COMMANDS_DIR);
+      } else {
+        console.log(chalk.bold("\nAvailable Custom Commands:"));
+        console.log("--------------------------------------------------------------------------------");
+        for (const file of commandsFiles) {
+          const content = await fs.readFile(path.join(__dirname, COMMANDS_DIR, file), "utf8");
+          const match = content.match(/^---\s*([\s\S]*?)\s*---\s*([\s\S]*)$/);
+          if (match) {
+            const metadata = yaml.load(match[1]) as any;
+            const cmdName = file.replace(".md", "");
+            const description = metadata.description || "No description";
+            console.log(`${chalk.cyan(cmdName).padEnd(20)} ${description}`);
+            if (metadata.arguments && metadata.arguments.length > 0) {
+              const argsStr = metadata.arguments
+                .map((arg: any) => `${chalk.gray(arg.name)}: ${arg.description || "no description"}`)
+                .join(", ");
+              console.log(`  ${chalk.gray("Args:")} ${argsStr}`);
+            }
+          }
+        }
+        console.log("--------------------------------------------------------------------------------\n");
+      }
+      process.exit(0);
+    } catch (e: any) {
+      if (e.code === "ENOENT") {
+        console.log("Commands directory not found: " + COMMANDS_DIR);
+      } else {
+        console.error(chalk.red(`Error listing commands: ${e.message}`));
+      }
       process.exit(1);
     }
   }
@@ -299,7 +390,19 @@ async function main() {
   }
 
   let userQuery = "";
-  if (!process.stdin.isTTY) {
+
+  if (options.customCommand) {
+    const expanded = await expandTemplate(options.customCommand, options.customArgs);
+    if (expanded) {
+      if (options.dryRun) {
+        console.log(expanded);
+        process.exit(0);
+      }
+      userQuery = expanded;
+    }
+  }
+
+  if (!userQuery && !process.stdin.isTTY) {
     try {
       const chunks: Buffer[] = [];
       for await (const chunk of process.stdin) {
