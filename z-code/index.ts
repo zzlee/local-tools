@@ -298,10 +298,11 @@ async function main() {
       try {
         await fs.access(commandPath);
         options.customCommand = commandName;
-        options.customArgs = positional.slice(1);
-      } catch {
-        // Not a custom command, keep it as part of the query
-      }
+         options.customArgs = positional.slice(1);
+       } catch {
+       console.error(chalk.red(`Custom command not found: /${commandName}`));
+       process.exit(1);
+     }
     }
   }
 
@@ -353,38 +354,45 @@ async function main() {
   }
 
   if (positional[0] === "command" && positional[1] === "list") {
-    try {
-      const entries = await fs.readdir(path.join(__dirname, COMMANDS_DIR));
-      const commandsFiles = entries.filter(f => f.endsWith(".md"));
-      
-      if (commandsFiles.length === 0) {
-        console.log("No custom commands found in " + COMMANDS_DIR);
-      } else {
-        console.log(chalk.bold("\nAvailable Custom Commands:"));
-        console.log("--------------------------------------------------------------------------------");
-        for (const file of commandsFiles) {
-          const { metadata } = await loadPrompt(path.join(__dirname, COMMANDS_DIR, file));
-          const cmdName = file.replace(".md", "");
-          const description = metadata.description || "No description";
-          console.log(`${chalk.cyan(cmdName).padEnd(20)} ${description}`);
-          if (metadata.arguments && metadata.arguments.length > 0) {
-            const argsStr = metadata.arguments
-              .map((arg: any) => `${chalk.gray(arg.name)}: ${arg.description || "no description"}`)
-              .join(", ");
-            console.log(`  ${chalk.gray("Args:")} ${argsStr}`);
-          }
-        }
-        console.log("--------------------------------------------------------------------------------\n");
-      }
-      process.exit(0);
-    } catch (e: any) {
-      if (e.code === "ENOENT") {
-        console.log("Commands directory not found: " + COMMANDS_DIR);
-      } else {
-        console.error(chalk.red(`Error listing commands: ${e.message}`));
-      }
-      process.exit(1);
-    }
+   if (positional[0] === "command") {
+     if (positional[1] === "list") {
+       try {
+         const entries = await fs.readdir(path.join(__dirname, COMMANDS_DIR));
+         const commandsFiles = entries.filter(f => f.endsWith(".md"));
+         
+         if (commandsFiles.length === 0) {
+           console.log("No custom commands found in " + COMMANDS_DIR);
+         } else {
+           console.log(chalk.bold("\nAvailable Custom Commands:"));
+           console.log("--------------------------------------------------------------------------------");
+           for (const file of commandsFiles) {
+             const { metadata } = await loadPrompt(path.join(__dirname, COMMANDS_DIR, file));
+             const cmdName = file.replace(".md", "");
+             const description = metadata.description || "No description";
+             console.log(`${chalk.cyan(cmdName).padEnd(20)} ${description}`);
+             if (metadata.arguments && metadata.arguments.length > 0) {
+               const argsStr = metadata.arguments
+                 .map((arg: any) => `${chalk.gray(arg.name)}: ${arg.description || "no description"}`)
+                 .join(", ");
+               console.log(`  ${chalk.gray("Args:")} ${argsStr}`);
+             }
+           }
+           console.log("--------------------------------------------------------------------------------\n");
+         }
+         process.exit(0);
+       } catch (e: any) {
+         if (e.code === "ENOENT") {
+           console.log("Commands directory not found: " + COMMANDS_DIR);
+         } else {
+           console.error(chalk.red(`Error listing commands: ${e.message}`));
+         }
+         process.exit(1);
+       }
+     } else {
+       console.error(chalk.red(`Unknown command: command ${positional[1] || ""}. Use 'command list'.`));
+       process.exit(1);
+     }
+   }
   }
 
   if (options.continueSession && !options.sessionId) {
