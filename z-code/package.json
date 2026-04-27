@@ -1,5 +1,5 @@
 {
-  "name": "opencode-tool-cli",
+  "name": "z-code",
   "version": "1.0.0",
   "type": "module",
   "main": "index.ts",

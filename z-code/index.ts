@@ -132,8 +132,10 @@ async function loadAgentsMd() {
     const agentsMdPath = path.join(process.cwd(), "AGENTS.md");
     await fs.access(agentsMdPath);
     const content = await fs.readFile(agentsMdPath, "utf8");
+    console.log(chalk.magenta(`[Debug] Loaded AGENTS.md from ${agentsMdPath}`));
     return `\n\n## Project-Specific Information (AGENTS.md)\n\n${content}`;
   } catch {
+    console.log(chalk.magenta(`[Debug] AGENTS.md not found at ${path.join(process.cwd(), "AGENTS.md")}`));
     return "";
   }
 }
@@ -155,14 +157,16 @@ function expandTemplate(content: string, args: string[], argumentsDef: any[] = [
 }
 
 async function main() {
-  process.on("SIGINT", () => {
-    console.log(chalk.yellow("\n\n🛑 Session interrupted."));
-    console.log(chalk.gray("You can resume this conversation with: z-code -c"));
-    process.exit(0);
-  });
-
   dotenv.config({quiet: true});
   dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
+
+  ['SIGINT', 'SIGTERM'].forEach(signal => {
+    process.on(signal, () => {
+      console.log(chalk.yellow(`\n\n🛑 Session interrupted by ${signal}`));
+      console.log(chalk.gray("You can resume this conversation with: z-code -c"));
+      process.exit(0);
+    });
+  });
  
   const SESSION_ROOT = path.join(process.cwd(), ".z-code", "sessions");
  

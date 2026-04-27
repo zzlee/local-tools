@@ -12,9 +12,7 @@ Each operation starts with one of three headers:
 *** Delete File: <path> - remove an existing file. Nothing follows.
 *** Update File: <path> - patch an existing file in place (optionally with a rename).
 
-IMPORTANT:
-Hunk Headers:
-	Use @@ <unique_text> to specify the exact location for an update. The <unique_text> must be a verbatim snippet from the original file (e.g., a function signature or unique comment) to ensure the patch is applied to the correct line.
+IMPORTANT: Use @@ <unique_text> to specify the exact location for an update. The <unique_text> must be a verbatim snippet from the original file (e.g., a function signature or unique comment) to ensure the patch is applied to the correct line.
 
 Example patch:
 
