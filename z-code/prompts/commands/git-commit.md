@@ -25,4 +25,5 @@ If diff length < 10 lines → Header only.
 If diff length > 10 lines or involves multiple files/logic shifts → Header + Detailed Body
 
 # Goal
-Commit changes
+Commit staged changes
+

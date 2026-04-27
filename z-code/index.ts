@@ -215,49 +215,76 @@ async function main() {
       const historyData = await fs.readFile(path.join(sessionDir, "history.json"), "utf8");
       const messages = JSON.parse(historyData);
       
-      console.log(chalk.bold(`\nSession History: ${id}`));
-      console.log("--------------------------------------------------------------------------------\n");
+      console.log(chalk.bold(`\n📜 Session Playback: ${id}`));
+      console.log(chalk.gray("=".repeat(80)) + "\n");
       
-      for (const message of messages) {
-        const role = message.role === "model" ? "Assistant" : "User";
-        const roleColor = message.role === "model" ? chalk.green : chalk.cyan;
+      const toolIcons: Record<string, string> = {
+        bash: '🐚',
+        read: '📄',
+        write: '📄',
+        grep: '🔍',
+        glob: '🔍',
+        edit: '📝',
+      };
+
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        const isModel = message.role === "model";
+        const roleLabel = isModel ? "🤖 Assistant" : "👤 User";
+        const roleColor = isModel ? chalk.green : chalk.cyan;
         
-        console.log(`${roleColor(chalk.bold(role))}:`);
+        console.log(`${roleColor(chalk.bold(roleLabel))}`);
         
         for (const part of message.parts || []) {
           if (part.text) {
             if (part.thought) {
-              console.log(chalk.gray(`  ${part.text}`));
+              console.log(chalk.gray(`  💭 Thinking:\n    ${part.text.trim()}`));
             } else {
-              console.log(part.text);
+              console.log(`  ${part.text}`);
             }
           } else if (part.functionCall) {
             const { name, args } = part.functionCall;
-             let details = "";
-             if (name === "bash") {
-               details = `${args.description || ""} ${args.command || ""}`;
-             } else if (name === "edit") {
-               details = args.filePath || "";
-             } else if (name === "grep") {
-               details = args.pattern || "";
-             } else if (name === "glob") {
-               details = args.description || args.pattern || "";
-             } else if (name === "read") {
-               details = `${args.filePath || ""} ${args.offset ? `offset=${args.offset}` : ""} ${args.limit ? `limit=${args.limit}` : ""}`;
-             } else if (name === "write") {
-               details = args.filePath || "";
-             }
-             const output = details ? `${name} ${details}` : name;
-             console.log(chalk.yellow(`  Executing ${output.trim()}`));
+            let details = "";
+            if (name === "bash") {
+              details = `${args.description || ""} ${args.command || ""}`;
+            } else if (name === "edit") {
+              details = args.filePath || "";
+            } else if (name === "grep") {
+              details = args.pattern || "";
+            } else if (name === "glob") {
+              details = args.description || args.pattern || "";
+            } else if (name === "read") {
+              details = `${args.filePath || ""} ${args.offset ? `offset=${args.offset}` : ""} ${args.limit ? `limit=${args.limit}` : ""}`;
+            } else if (name === "write") {
+              details = args.filePath || "";
+            }
+            const output = details ? `${name} ${details}` : name;
+            console.log(chalk.yellow(`  🛠️  Call: ${output.trim()}`));
           } else if (part.functionResponse) {
             const { name, response } = part.functionResponse;
-            // console.log(chalk.blue(`  Tool Response from ${name}: ${JSON.stringify(response)}`));
-            console.log(chalk.blue(`  Executed ${name}: ...`));
+            const icon = toolIcons[name] || '⚙️';
+            const content = response.output || response.error || "No output";
+            
+            console.log(chalk.blue(`  📥 Response from ${name}: ${icon}`));
+            
+            const lines = content.split('\n');
+            if (lines.length > 15) {
+              const head = lines.slice(0, 10).join('\n');
+              const tail = lines.slice(-5).join('\n');
+              console.log(chalk.gray(`    ${head}\n    ... [truncated] ...\n    ${tail}`));
+            } else {
+              console.log(chalk.gray(`    ${content}`));
+            }
           }
         }
-        console.log(""); // separator between turns
+        
+        if (!isModel) {
+          console.log(chalk.gray("\n" + "─".repeat(40)));
+        } else {
+          console.log("");
+        }
       }
-      console.log("--------------------------------------------------------------------------------\n");
+      console.log(chalk.gray("=".repeat(80)) + "\n");
     } catch (e: any) {
       if (e.code === "ENOENT") {
         console.error(chalk.red(`Session ${id} not found.`));
@@ -266,6 +293,7 @@ async function main() {
       }
     }
   }
+
 
   async function spawnSession(id: string, promptPath?: string) {
     const sessionDir = path.join(SESSION_ROOT, id);
