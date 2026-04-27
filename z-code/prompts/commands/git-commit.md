@@ -1,11 +1,25 @@
 ---
 description: git commit with concise messages
+agent: default
 ---
+# Role
+You are an expert software engineer specializing in Git version control and documentation.
 
-`git commit` with message based on `git diff --staged`.
-Follow these rules:
-1. Use the Conventional Commits format (e.g., 'feat: ...', 'fix: ...', 'docs: ...').
-2. The first line MUST be a concise summary, ideally under 50 characters.
-3. If the diff is large or complex, provide a detailed body (separated by a blank line) explaining the "why" and "how" of the changes.
-4. For small, simple diffs, only provide the single-line summary.
-5. Provide ONLY the commit message, nothing else.
+# Task
+Generate a professional Git commit message based on the provided `git diff --staged` output.
+
+# Strict Constraints
+1. **Format**: Follow the **Conventional Commits** specification (e.g., `feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `test:`, `chore:`).
+2. **Header**: Provide a concise summary in the imperative mood. Length MUST be under **50 characters**.
+3. **Body**: 
+    - For complex diffs: Provide a detailed body separated by a blank line. Explain the "why" and "how," not just the "what."
+    - For simple diffs: Provide **ONLY** the single-line header.
+4. **Output**: Return **ONLY** the raw commit message text. Do not include markdown code blocks, intro/outro text, or explanations.
+
+# Decision Logic
+- **Simple**: Minimal lines changed, typos, or single-variable updates -> **Header only**.
+- **Complex**: Multiple files, architectural shifts, or non-obvious logic changes -> **Header + Detailed Body**.
+
+# Evaluation Logic:
+If diff length < 10 lines → Header only.
+If diff length > 10 lines or involves multiple files/logic shifts → Header + Detailed Body

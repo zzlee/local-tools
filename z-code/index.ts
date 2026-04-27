@@ -43,7 +43,7 @@ Options:
   
 Commands:
   session list              List all sessions (newest first)
-  session show <id>           Show history of a specific session
+  session show <id>         Show history of a specific session
   session delete <id>       Delete a specific session
   session delete-all        Delete all sessions
   command list              List available custom command templates
@@ -57,7 +57,7 @@ function parseArgs(args: string[]) {
   const options: any = {
     verbosity: 0,
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    promptPath: "prompts/default.txt",
+    promptPath: "prompts/default.md",
     sessionId: null,
     continueSession: false,
     fork: false,
@@ -100,30 +100,31 @@ function parseArgs(args: string[]) {
   return { options, positional };
 }
 
-async function expandTemplate(commandName: string, args: string[]): Promise<string | null> {
-  try {
-    const templatePath = path.join(__dirname, COMMANDS_DIR, `${commandName}.md`);
-    await fs.access(templatePath);
-    const content = await fs.readFile(templatePath, "utf8");
-    
-    const match = content.match(/^---\s*([\s\S]*?)\s*---\s*([\s\S]*)$/);
-    if (!match) return null;
-    
-    const yamlContent = match[1];
-    const templateBody = match[2];
-    const metadata = yaml.load(yamlContent) as any;
-    const argumentsDef = metadata.arguments || [];
-    
-    let expandedBody = templateBody;
+async function loadPrompt(filePath: string) {
+  const content = await fs.readFile(filePath, "utf8");
+  const match = content.match(/^---\s*([\s\S]*?)\s*---\s*([\s\S]*)$/);
+  if (!match) {
+    return { metadata: {}, body: content };
+  }
+  const metadata = yaml.load(match[1]) as any;
+  const body = match[2].trim();
+  return { metadata, body };
+}
+
+function expandTemplate(content: string, args: string[], argumentsDef: any[] = []) {
+  let expanded = content;
+  if (argumentsDef && argumentsDef.length > 0) {
     for (let i = 0; i < argumentsDef.length; i++) {
       const argName = argumentsDef[i].name;
       const argValue = args[i] || "";
-      expandedBody = expandedBody.replaceAll(`{{${argName}}}`, argValue);
+      expanded = expanded.replaceAll(`{{${argName}}}`, argValue);
     }
-    return expandedBody.trim();
-  } catch {
-    return null;
+  } else {
+    for (let i = 0; i < args.length; i++) {
+      expanded = expanded.replaceAll(`{{arg${i}}}`, args[i]);
+    }
   }
+  return expanded;
 }
 
 async function main() {
@@ -267,11 +268,11 @@ async function main() {
       : (options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath) ? options.promptPath : path.join(__dirname, options.promptPath));
 
     try {
-      const promptContent = await fs.readFile(resolvedPromptPath, "utf8");
+      const { metadata, body } = await loadPrompt(resolvedPromptPath);
       const toolDescriptions = registry.listTools()
         .map(t => `${t.id}: ${t.description}`)
         .join("\n");
-      const systemPrompt = `${promptContent}\n\nAvailable Tools:\n${toolDescriptions}`;
+      const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}\n\nAvailable Tools:\n${toolDescriptions}`;
 
       await fs.mkdir(sessionDir, { recursive: true });
       await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
@@ -362,19 +363,15 @@ async function main() {
         console.log(chalk.bold("\nAvailable Custom Commands:"));
         console.log("--------------------------------------------------------------------------------");
         for (const file of commandsFiles) {
-          const content = await fs.readFile(path.join(__dirname, COMMANDS_DIR, file), "utf8");
-          const match = content.match(/^---\s*([\s\S]*?)\s*---\s*([\s\S]*)$/);
-          if (match) {
-            const metadata = yaml.load(match[1]) as any;
-            const cmdName = file.replace(".md", "");
-            const description = metadata.description || "No description";
-            console.log(`${chalk.cyan(cmdName).padEnd(20)} ${description}`);
-            if (metadata.arguments && metadata.arguments.length > 0) {
-              const argsStr = metadata.arguments
-                .map((arg: any) => `${chalk.gray(arg.name)}: ${arg.description || "no description"}`)
-                .join(", ");
-              console.log(`  ${chalk.gray("Args:")} ${argsStr}`);
-            }
+          const { metadata } = await loadPrompt(path.join(__dirname, COMMANDS_DIR, file));
+          const cmdName = file.replace(".md", "");
+          const description = metadata.description || "No description";
+          console.log(`${chalk.cyan(cmdName).padEnd(20)} ${description}`);
+          if (metadata.arguments && metadata.arguments.length > 0) {
+            const argsStr = metadata.arguments
+              .map((arg: any) => `${chalk.gray(arg.name)}: ${arg.description || "no description"}`)
+              .join(", ");
+            console.log(`  ${chalk.gray("Args:")} ${argsStr}`);
           }
         }
         console.log("--------------------------------------------------------------------------------\n");
@@ -440,7 +437,77 @@ async function main() {
   }
   console.log(chalk.gray(`Session ID: ${sessionId}`));
   const sessionDir = path.join(SESSION_ROOT, sessionId);
+  const toolDescriptions = registry.listTools()
+    .map(t => `${t.id}: ${t.description}`)
+    .join("\n");
+
   let systemPrompt: string;
+  let userQuery = "";
+
+  if (options.customCommand) {
+    const cmdName = options.customCommand;
+    const cmdPath = path.join(__dirname, COMMANDS_DIR, `${cmdName}.md`);
+    const { metadata: cmdMetadata, body: cmdBody } = await loadPrompt(cmdPath);
+    
+    const agentName = cmdMetadata.agent || "default";
+    const cmdArgsDef = cmdMetadata.arguments || [];
+    
+    const agentPath = agentName === "default" 
+      ? (options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath) ? options.promptPath : path.join(__dirname, options.promptPath))
+      : path.join(__dirname, `prompts/${agentName}.md`);
+    
+    const { metadata: agentMetadata, body: agentBody } = await loadPrompt(agentPath);
+    const agentArgsDef = agentMetadata.arguments || [];
+    
+    const nAgent = agentArgsDef.length;
+    const nCmd = cmdArgsDef.length;
+    
+    const agentArgs = positional.slice(1, 1 + nAgent);
+    const cmdArgs = positional.slice(1 + nAgent, 1 + nAgent + nCmd);
+    const queryPart = positional.slice(1 + nAgent + nCmd).join(" ");
+    
+    systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}\n\nAvailable Tools:\n${toolDescriptions}`;
+    userQuery = `${expandTemplate(cmdBody, cmdArgs, cmdArgsDef)}\n\n${queryPart}`.trim();
+    
+    if (options.dryRun) {
+      console.log(chalk.bold("\nSystem Prompt:"));
+      console.log(systemPrompt);
+      console.log("\n" + chalk.bold("User Prompt:"));
+      console.log(userQuery);
+      process.exit(0);
+    }
+  } else {
+    const promptPath = options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath)
+      ? options.promptPath
+      : path.join(__dirname, options.promptPath);
+    
+    const { metadata: defaultMetadata, body: defaultBody } = await loadPrompt(promptPath);
+    
+    systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}\n\nAvailable Tools:\n${toolDescriptions}`;
+    
+    if (!process.stdin.isTTY) {
+      try {
+        const chunks: Buffer[] = [];
+        for await (const chunk of process.stdin) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const pipedData = Buffer.concat(chunks).toString("utf8");
+        if (pipedData) {
+          userQuery = pipedData + (positional.length > 0 ? "\n\n" + positional.join(" ") : "");
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (!userQuery) {
+      userQuery = positional.join(" ");
+    }
+  }
+
+  if (!userQuery) {
+    console.error("Please provide a query as a command line argument or via stdin");
+    process.exit(1);
+  }
 
   if (options.sessionId) {
     try {
@@ -450,51 +517,8 @@ async function main() {
       process.exit(1);
     }
   } else {
-    const promptPath = options.promptPath.startsWith("/") || path.isAbsolute(options.promptPath)
-      ? options.promptPath
-      : path.join(__dirname, options.promptPath);
-    const defaultPrompt = await fs.readFile(promptPath, "utf8");
-    const toolDescriptions = registry.listTools()
-      .map(t => `${t.id}: ${t.description}`)
-      .join("\n");
-    systemPrompt = `${defaultPrompt}\n\nAvailable Tools:\n${toolDescriptions}`;
     await fs.mkdir(sessionDir, { recursive: true });
     await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
-  }
-
-  let userQuery = "";
-
-  if (options.customCommand) {
-    const expanded = await expandTemplate(options.customCommand, options.customArgs);
-    if (expanded) {
-      if (options.dryRun) {
-        console.log(expanded);
-        process.exit(0);
-      }
-      userQuery = expanded;
-    }
-  }
-
-  if (!userQuery && !process.stdin.isTTY) {
-    try {
-      const chunks: Buffer[] = [];
-      for await (const chunk of process.stdin) {
-        chunks.push(Buffer.from(chunk));
-      }
-      const pipedData = Buffer.concat(chunks).toString("utf8");
-      if (pipedData) {
-        userQuery = pipedData + (positional.length > 0 ? "\n\n" + positional.join(" ") : "");
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-  if (!userQuery) {
-    userQuery = positional.join(" ");
-  }
-  if (!userQuery) {
-    console.error("Please provide a query as a command line argument or via stdin");
-    process.exit(1);
   }
 
   let messages: any[] = [];

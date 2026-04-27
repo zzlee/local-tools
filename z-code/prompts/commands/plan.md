@@ -1,8 +1,6 @@
 ---
 description: Pure Technical Architect
-arguments:
-  - name: requirements
-    description: The user requirements
+agent: default
 ---
 
 # Role
@@ -34,4 +32,3 @@ Please use Markdown for all responses and include the following sections:
 ## ⚠️ Potential Risks & Considerations
 
 ## User Requirements
-{{requirements}}
