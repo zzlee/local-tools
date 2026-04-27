@@ -24,16 +24,16 @@ function loadDescription() {
 }
 
 function normalizeLineEndings(text: string): string {
-  return text.replaceAll("\\r\\n", "\\n");
+  return text.replaceAll("\n", "\n");
 }
 
-function detectLineEnding(text: string): "\\n" | "\\r\\n" {
-  return text.includes("\\r\\n") ? "\\r\\n" : "\\n";
+function detectLineEnding(text: string): "\n" | "\n" {
+  return text.includes("\n") ? "\n" : "\n";
 }
 
-function convertToLineEnding(text: string, ending: "\\n" | "\\r\\n"): string {
-  if (ending === "\\n") return text;
-  return text.replaceAll("\\n", "\\r\\n");
+function convertToLineEnding(text: string, ending: "\n" | "\n"): string {
+  if (ending === "\n") return text;
+  return text.replaceAll("\n", "\n");
 }
 
 function replace(content: string, oldString: string, newString: string, replaceAll = false): string {

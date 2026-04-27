@@ -555,7 +555,7 @@ async function main() {
         const messages = JSON.parse(historyData);
         if (messages.length > 0) {
           const lastMessage = messages[messages.length - 1];
-          if (lastMessage.role === "user" && lastMessage.parts.some(p => p.functionResponse)) {
+           if (lastMessage.role === "user" && lastMessage.parts.some((p: any) => p.functionResponse)) {
             userQuery = "[System: The previous session was interrupted after a tool response. Please continue your analysis and provide the final response.]";
           } else {
             userQuery = "[System: Please continue the conversation from where it was interrupted.]";
