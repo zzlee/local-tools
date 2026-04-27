@@ -40,15 +40,16 @@ Options:
   -o, --output <path>       Save the final cleaned output to a file
   -c, --continue            Resume the last session or create a new one:
   --dry-run                 Show expanded prompt for custom commands without executing
-  
-Commands:
-  session list              List all sessions (newest first)
-  session show <id>         Show history of a specific session
-  session delete <id>       Delete a specific session
-  session delete-all        Delete all sessions
-  command list              List available custom command templates
-  <command> [args...]       Use a custom command template from prompts/commands/
-  
+  --list-sessions           List all sessions
+  --show-session <id>       Show history of a specific session
+  --delete-session <id>     Delete a specific session
+  --delete-all-sessions     Delete all sessions
+  --list-commands           List available custom command templates
+
+Custom Commands:
+  /<command> [args...]      Use a custom command template (e.g., /review "some text")
+                            Templates are located in prompts/commands/
+
 You can also provide the query via stdin.
 `);
 }
@@ -63,6 +64,11 @@ function parseArgs(args: string[]) {
     fork: false,
     dryRun: false,
     output: null,
+    listSessions: false,
+    showSessionId: null,
+    deleteSessionId: null,
+    deleteAllSessions: false,
+    listCommands: false,
   };
   const positional: string[] = [];
 
@@ -92,6 +98,16 @@ function parseArgs(args: string[]) {
       options.output = args[++i];
     } else if (arg === "--dry-run") {
       options.dryRun = true;
+    } else if (arg === "--list-sessions") {
+      options.listSessions = true;
+    } else if (arg === "--show-session") {
+      options.showSessionId = args[++i];
+    } else if (arg === "--delete-session") {
+      options.deleteSessionId = args[++i];
+    } else if (arg === "--delete-all-sessions") {
+      options.deleteAllSessions = true;
+    } else if (arg === "--list-commands") {
+      options.listCommands = true;
     } else {
       positional.push(arg);
     }
@@ -320,79 +336,59 @@ async function main() {
     process.exit(0);
   }
 
-  if (positional[0] === "session") {
-    const subCommand = positional[1];
-    if (subCommand === "list") {
-      await listSessions();
-      process.exit(0);
-    } else if (subCommand === "show") {
-      const id = positional[2];
-      if (!id) {
-        console.error(chalk.red("Please provide a session ID to show. Usage: z-code session show <id>"));
-        process.exit(1);
-      }
-      await showSession(id);
-      process.exit(0);
-    } else if (subCommand === "delete") {
-      const id = positional[2];
-      if (!id) {
-        console.error(chalk.red("Please provide a session ID to delete. Usage: z-code session delete <id>"));
-        process.exit(1);
-      }
-      await deleteSession(id);
-      process.exit(0);
-    } else if (subCommand === "delete-all") {
-      await deleteAllSessions();
-      process.exit(0);
-    } else if (subCommand === "delete-all") {
-      await deleteAllSessions();
-      process.exit(0);
-    } else {
-      console.error(chalk.red(`Unknown session command: ${subCommand}. Use 'list', 'delete <id>', or 'delete-all'.`));
+  if (options.listSessions) {
+    await listSessions();
+    process.exit(0);
+  } else if (options.showSessionId) {
+    if (!options.showSessionId) {
+      console.error(chalk.red("Please provide a session ID to show. Usage: z-code --show-session <id>"));
       process.exit(1);
     }
-  }
-
-  if (positional[0] === "command" && positional[1] === "list") {
-   if (positional[0] === "command") {
-     if (positional[1] === "list") {
-       try {
-         const entries = await fs.readdir(path.join(__dirname, COMMANDS_DIR));
-         const commandsFiles = entries.filter(f => f.endsWith(".md"));
-         
-         if (commandsFiles.length === 0) {
-           console.log("No custom commands found in " + COMMANDS_DIR);
-         } else {
-           console.log(chalk.bold("\nAvailable Custom Commands:"));
-           console.log("--------------------------------------------------------------------------------");
-           for (const file of commandsFiles) {
-             const { metadata } = await loadPrompt(path.join(__dirname, COMMANDS_DIR, file));
-             const cmdName = file.replace(".md", "");
-             const description = metadata.description || "No description";
-             console.log(`${chalk.cyan(cmdName).padEnd(20)} ${description}`);
-             if (metadata.arguments && metadata.arguments.length > 0) {
-               const argsStr = metadata.arguments
-                 .map((arg: any) => `${chalk.gray(arg.name)}: ${arg.description || "no description"}`)
-                 .join(", ");
-               console.log(`  ${chalk.gray("Args:")} ${argsStr}`);
-             }
-           }
-           console.log("--------------------------------------------------------------------------------\n");
-         }
-         process.exit(0);
-       } catch (e: any) {
-         if (e.code === "ENOENT") {
-           console.log("Commands directory not found: " + COMMANDS_DIR);
-         } else {
-           console.error(chalk.red(`Error listing commands: ${e.message}`));
-         }
-         process.exit(1);
-       }
-     } else {
-       console.error(chalk.red(`Unknown command: command ${positional[1] || ""}. Use 'command list'.`));
-       process.exit(1);
-     }
-   }
+    await showSession(options.showSessionId);
+    process.exit(0);
+  } else if (options.deleteSessionId) {
+    if (!options.deleteSessionId) {
+      console.error(chalk.red("Please provide a session ID to delete. Usage: z-code --delete-session <id>"));
+      process.exit(1);
+    }
+    await deleteSession(options.deleteSessionId);
+    process.exit(0);
+  } else if (options.deleteAllSessions) {
+    await deleteAllSessions();
+    process.exit(0);
+  } else if (options.listCommands) {
+    try {
+      const entries = await fs.readdir(path.join(__dirname, COMMANDS_DIR));
+      const commandsFiles = entries.filter(f => f.endsWith(".md"));
+      
+      if (commandsFiles.length === 0) {
+        console.log("No custom commands found in " + COMMANDS_DIR);
+      } else {
+        console.log(chalk.bold("\nAvailable Custom Commands:"));
+        console.log("--------------------------------------------------------------------------------");
+        for (const file of commandsFiles) {
+          const { metadata } = await loadPrompt(path.join(__dirname, COMMANDS_DIR, file));
+          const cmdName = file.replace(".md", "");
+          const description = metadata.description || "No description";
+          console.log(`${chalk.cyan(cmdName).padEnd(20)} ${description}`);
+          if (metadata.arguments && metadata.arguments.length > 0) {
+            const argsStr = metadata.arguments
+              .map((arg: any) => `${chalk.gray(arg.name)}: ${arg.description || "no description"}`)
+              .join(", ");
+            console.log(`  ${chalk.gray("Args:")} ${argsStr}`);
+          }
+        }
+        console.log("--------------------------------------------------------------------------------\n");
+      }
+      process.exit(0);
+    } catch (e: any) {
+      if (e.code === "ENOENT") {
+        console.log("Commands directory not found: " + COMMANDS_DIR);
+      } else {
+        console.error(chalk.red(`Error listing commands: ${e.message}`));
+      }
+      process.exit(1);
+    }
   }
 
   if (options.continueSession && !options.sessionId) {
