@@ -127,6 +127,17 @@ async function loadPrompt(filePath: string) {
   return { metadata, body };
 }
 
+async function loadAgentsMd() {
+  try {
+    const agentsMdPath = path.join(process.cwd(), "AGENTS.md");
+    await fs.access(agentsMdPath);
+    const content = await fs.readFile(agentsMdPath, "utf8");
+    return `\n\n## Project-Specific Information (AGENTS.md)\n\n${content}`;
+  } catch {
+    return "";
+  }
+}
+
 function expandTemplate(content: string, args: string[], argumentsDef: any[] = []) {
   let expanded = content;
   if (argumentsDef && argumentsDef.length > 0) {
@@ -322,7 +333,8 @@ async function main() {
       const toolDescriptions = registry.listTools()
         .map(t => `${t.id}: ${t.description}`)
         .join("\n");
-      const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}\n\nAvailable Tools:\n${toolDescriptions}`;
+      const agentsMdContent = await loadAgentsMd();
+      const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}${agentsMdContent}\n\nAvailable Tools:\n${toolDescriptions}`;
 
       await fs.mkdir(sessionDir, { recursive: true });
       await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
@@ -517,7 +529,8 @@ async function main() {
     const cmdArgs = positional.slice(1 + nAgent, 1 + nAgent + nCmd);
     const queryPart = positional.slice(1 + nAgent + nCmd).join(" ");
     
-    systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}\n\nAvailable Tools:\n${toolDescriptions}`;
+    const agentsMdContent = await loadAgentsMd();
+    systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}${agentsMdContent}\n\nAvailable Tools:\n${toolDescriptions}`;
     userQuery = `${expandTemplate(cmdBody, cmdArgs, cmdArgsDef)}\n\n${queryPart}`.trim();
     if (pipedData) {
       userQuery += `\n\n${pipedData}`;
@@ -537,7 +550,8 @@ async function main() {
     
     const { metadata: defaultMetadata, body: defaultBody } = await loadPrompt(promptPath);
     
-    systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}\n\nAvailable Tools:\n${toolDescriptions}`;
+    const agentsMdContent = await loadAgentsMd();
+    systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}${agentsMdContent}\n\nAvailable Tools:\n${toolDescriptions}`;
     
     if (pipedData) {
       userQuery = pipedData + (positional.length > 0 ? "\n\n" + positional.join(" ") : "");
