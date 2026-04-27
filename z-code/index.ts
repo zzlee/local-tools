@@ -451,6 +451,19 @@ async function main() {
 
   let systemPrompt: string;
   let userQuery = "";
+  let pipedData = "";
+
+  if (!process.stdin.isTTY) {
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of process.stdin) {
+        chunks.push(Buffer.from(chunk));
+      }
+      pipedData = Buffer.concat(chunks).toString("utf8");
+    } catch (e) {
+      // ignore
+    }
+  }
 
   if (options.customCommand) {
     const cmdName = options.customCommand;
@@ -476,6 +489,9 @@ async function main() {
     
     systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}\n\nAvailable Tools:\n${toolDescriptions}`;
     userQuery = `${expandTemplate(cmdBody, cmdArgs, cmdArgsDef)}\n\n${queryPart}`.trim();
+    if (pipedData) {
+      userQuery += `\n\n${pipedData}`;
+    }
     
     if (options.dryRun) {
       console.log(chalk.bold("\nSystem Prompt:"));
@@ -493,19 +509,8 @@ async function main() {
     
     systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}\n\nAvailable Tools:\n${toolDescriptions}`;
     
-    if (!process.stdin.isTTY) {
-      try {
-        const chunks: Buffer[] = [];
-        for await (const chunk of process.stdin) {
-          chunks.push(Buffer.from(chunk));
-        }
-        const pipedData = Buffer.concat(chunks).toString("utf8");
-        if (pipedData) {
-          userQuery = pipedData + (positional.length > 0 ? "\n\n" + positional.join(" ") : "");
-        }
-      } catch (e) {
-        // ignore
-      }
+    if (pipedData) {
+      userQuery = pipedData + (positional.length > 0 ? "\n\n" + positional.join(" ") : "");
     }
     if (!userQuery) {
       userQuery = positional.join(" ");
