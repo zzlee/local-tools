@@ -144,6 +144,12 @@ function expandTemplate(content: string, args: string[], argumentsDef: any[] = [
 }
 
 async function main() {
+  process.on("SIGINT", () => {
+    console.log(chalk.yellow("\n\n🛑 Session interrupted."));
+    console.log(chalk.gray("You can resume this conversation with: z-code -c"));
+    process.exit(0);
+  });
+
   dotenv.config({quiet: true});
   dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
  
@@ -542,8 +548,28 @@ async function main() {
   }
 
   if (!userQuery) {
-    console.error("Please provide a query as a command line argument or via stdin");
-    process.exit(1);
+    if (options.continueSession && options.sessionId) {
+      const sessionDir = path.join(SESSION_ROOT, options.sessionId);
+      try {
+        const historyData = await fs.readFile(path.join(sessionDir, "history.json"), "utf8");
+        const messages = JSON.parse(historyData);
+        if (messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage.role === "user" && lastMessage.parts.some(p => p.functionResponse)) {
+            userQuery = "[System: The previous session was interrupted after a tool response. Please continue your analysis and provide the final response.]";
+          } else {
+            userQuery = "[System: Please continue the conversation from where it was interrupted.]";
+          }
+        }
+      } catch (e) {
+        // ignore, fallback to error if no history
+      }
+    }
+
+    if (!userQuery) {
+      console.error("Please provide a query as a command line argument or via stdin");
+      process.exit(1);
+    }
   }
 
   if (options.sessionId) {
