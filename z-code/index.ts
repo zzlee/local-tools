@@ -167,7 +167,6 @@ async function main() {
       process.exit(0);
     });
   });
- 
   const SESSION_ROOT = path.join(process.cwd(), ".z-code", "sessions");
  
   async function listSessions() {
