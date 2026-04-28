@@ -132,10 +132,8 @@ async function loadAgentsMd() {
     const agentsMdPath = path.join(process.cwd(), "AGENTS.md");
     await fs.access(agentsMdPath);
     const content = await fs.readFile(agentsMdPath, "utf8");
-    console.log(chalk.magenta(`[Debug] Loaded AGENTS.md from ${agentsMdPath}`));
     return `\n\n## Project-Specific Information (AGENTS.md)\n\n${content}`;
   } catch {
-    console.log(chalk.magenta(`[Debug] AGENTS.md not found at ${path.join(process.cwd(), "AGENTS.md")}`));
     return "";
   }
 }
