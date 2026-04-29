@@ -331,11 +331,24 @@ async function main() {
 
     try {
       const { metadata, body } = await loadPrompt(resolvedPromptPath);
-      const toolDescriptions = registry.listTools()
+      
+      const allowedTools = metadata.tool;
+      const activeTools = registry.listTools().filter(t => {
+        if (!allowedTools) return true;
+        const toolsList = Array.isArray(allowedTools) ? allowedTools : [allowedTools];
+        if (toolsList.includes('*')) return true;
+        return toolsList.includes(t.id);
+      });
+
+      const toolDescriptions = activeTools
         .map(t => `${t.id}: ${t.description}`)
         .join("\n");
+        
       const agentsMdContent = await loadAgentsMd();
-      const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}${agentsMdContent}\n\nAvailable Tools:\n${toolDescriptions}`;
+      const toolsSection = toolDescriptions ? `\n\nAvailable Tools:\n${toolDescriptions}` : "";
+      const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}${agentsMdContent}${toolsSection}`;
+
+
 
       await fs.mkdir(sessionDir, { recursive: true });
       await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
@@ -377,6 +390,37 @@ async function main() {
   registry.register(GrepTool);
   registry.register(WriteTool);
   registry.register(ApplyPatchTool);
+
+  let allowedTools: string[] | null = null;
+  if (options.customCommand) {
+    const cmdPath = path.join(__dirname, COMMANDS_DIR, `${options.customCommand}.md`);
+    try {
+      const { metadata } = await loadPrompt(cmdPath);
+      if (metadata.tool) {
+        allowedTools = Array.isArray(metadata.tool) ? metadata.tool : [metadata.tool];
+      }
+    } catch (e) {
+      // metadata already checked during custom command detection
+    }
+  }
+
+  const activeTools = registry.listTools().filter(t => {
+    if (!allowedTools) return true;
+    if (allowedTools.includes('*')) return true;
+    return allowedTools.includes(t.id);
+  });
+
+  const tools: any[] = [{
+    functionDeclarations: activeTools.map(t => ({
+      name: t.id,
+      description: t.description,
+      parameters: zodToJsonSchema(t.parameters as any),
+    }))
+  }];
+
+  const toolDescriptions = activeTools
+    .map(t => `${t.id}: ${t.description}`)
+    .join("\n");
 
   if (options.help) {
     printHelp();
@@ -460,7 +504,6 @@ async function main() {
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-
   if (!apiKey) {
     console.error("Missing GEMINI_API_KEY environment variable");
     process.exit(1);
@@ -469,14 +512,6 @@ async function main() {
   const ai = new GoogleGenAI({
     apiKey: apiKey,
   });
-
-  const tools: any[] = [{
-    functionDeclarations: registry.listTools().map(t => ({
-      name: t.id,
-      description: t.description,
-      parameters: zodToJsonSchema(t.parameters as any),
-    }))
-  }];
 
   const sessionId = options.sessionId || crypto.randomUUID();
   if (options.fork) {
@@ -488,9 +523,6 @@ async function main() {
   }
   console.log(chalk.gray(`Session ID: ${sessionId}`));
   const sessionDir = path.join(SESSION_ROOT, sessionId);
-  const toolDescriptions = registry.listTools()
-    .map(t => `${t.id}: ${t.description}`)
-    .join("\n");
 
   let systemPrompt: string;
   let userQuery = "";
@@ -531,7 +563,9 @@ async function main() {
     const queryPart = positional.slice(1 + nAgent + nCmd).join(" ");
     
     const agentsMdContent = await loadAgentsMd();
-    systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}${agentsMdContent}\n\nAvailable Tools:\n${toolDescriptions}`;
+    const toolsSection = toolDescriptions ? `\n\nAvailable Tools:\n${toolDescriptions}` : "";
+    systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}${agentsMdContent}${toolsSection}`;
+
     userQuery = `${expandTemplate(cmdBody, cmdArgs, cmdArgsDef)}\n\n${queryPart}`.trim();
     if (pipedData) {
       userQuery += `\n\n${pipedData}`;
@@ -552,7 +586,9 @@ async function main() {
     const { metadata: defaultMetadata, body: defaultBody } = await loadPrompt(promptPath);
     
     const agentsMdContent = await loadAgentsMd();
-    systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}${agentsMdContent}\n\nAvailable Tools:\n${toolDescriptions}`;
+    const toolsSection = toolDescriptions ? `\n\nAvailable Tools:\n${toolDescriptions}` : "";
+    systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}${agentsMdContent}${toolsSection}`;
+
     
     if (pipedData) {
       userQuery = pipedData + (positional.length > 0 ? "\n\n" + positional.join(" ") : "");
