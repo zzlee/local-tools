@@ -4,7 +4,7 @@ set -e
 echo "Starting the setup process. Please wait..."
 
 echo "Installing dependencies..."
-npm install
+npm install && cd z-code && npm install
 
 echo "Building the project..."
 npm run build
