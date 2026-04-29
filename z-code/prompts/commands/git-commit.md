@@ -1,6 +1,7 @@
 ---
 description: git commit with concise messages
 agent: default
+tool: [*]
 ---
 # Role
 You are an expert software engineer specializing in Git version control and documentation.

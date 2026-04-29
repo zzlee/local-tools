@@ -1,6 +1,7 @@
 ---
 description: Create git branch and technical implementation plan
-agent: create-plan
+agent: plan
+tool: [bash, glob, grep, read]
 ---
 
 ## User Requirements
