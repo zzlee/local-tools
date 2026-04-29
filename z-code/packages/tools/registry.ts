@@ -1,11 +1,32 @@
 import z from "zod";
+import type { ChildProcess } from "node:child_process";
 import type { ToolDef, ToolContext, ExecuteResult, Metadata } from "./types.js";
 
 export class ToolRegistry {
   private tools = new Map<string, ToolDef>();
+  private children = new Set<ChildProcess>();
 
   register(tool: ToolDef) {
     this.tools.set(tool.id, tool);
+  }
+
+  registerChild(child: ChildProcess) {
+    this.children.add(child);
+  }
+
+  unregisterChild(child: ChildProcess) {
+    this.children.delete(child);
+  }
+
+  async killAllChildren() {
+    const kills = Array.from(this.children).map(child => {
+      return new Promise<void>((resolve) => {
+        child.kill("SIGKILL");
+        child.on("exit", resolve);
+      });
+    });
+    await Promise.all(kills);
+    this.children.clear();
   }
 
   async execute<M extends Metadata>(

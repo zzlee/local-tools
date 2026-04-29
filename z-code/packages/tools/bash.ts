@@ -60,6 +60,11 @@ export const BashTool: ToolDef = {
         env: process.env,
       });
 
+      const registry = (ctx.extra?.registry as any);
+      if (registry) {
+        registry.registerChild(child);
+      }
+
       let output = "";
       let stderr = "";
       let cut = false;
@@ -87,6 +92,11 @@ export const BashTool: ToolDef = {
 
       child.on("close", (code) => {
         clearTimeout(timer);
+        
+        const registry = (ctx.extra?.registry as any);
+        if (registry) {
+          registry.unregisterChild(child);
+        }
         
         let finalOutput = output || "(no output)";
         if (cut) {

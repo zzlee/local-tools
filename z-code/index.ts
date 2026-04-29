@@ -167,15 +167,26 @@ async function main() {
 
   const config = await loadConfig();
 
+  const registry = new ToolRegistry();
+  registry.register(ReadTool);
+  registry.register(BashTool);
+  registry.register(GlobTool);
+  registry.register(EditTool);
+  registry.register(GrepTool);
+  registry.register(WriteTool);
+  registry.register(ApplyPatchTool);
+
   ['SIGINT', 'SIGTERM'].forEach(signal => {
-    process.on(signal, () => {
+    process.on(signal, async () => {
+      await registry.killAllChildren();
       console.log(chalk.yellow(`\n\n🛑 Session interrupted by ${signal}`));
       console.log(chalk.gray("You can resume this conversation with: z-code -c"));
       process.exit(0);
     });
   });
+
   const SESSION_ROOT = path.join(process.cwd(), ".z-code", "sessions");
- 
+
   async function listSessions() {
     try {
       const entries = await fs.readdir(SESSION_ROOT);
@@ -185,14 +196,14 @@ async function main() {
           return { id, mtime: stats.mtime };
         })
       );
- 
+
       sessionData.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
- 
+
       if (sessionData.length === 0) {
         console.log("No sessions found.");
         return;
       }
- 
+
       console.log(chalk.bold("\nActive Sessions (newest first):"));
       console.log("--------------------------------------------------------------------------------");
       for (const { id, mtime } of sessionData) {
@@ -207,7 +218,7 @@ async function main() {
       }
     }
   }
- 
+
   async function deleteSession(id: string) {
     const sessionDir = path.join(SESSION_ROOT, id);
     try {
@@ -222,7 +233,7 @@ async function main() {
       }
     }
   }
- 
+
   async function deleteAllSessions() {
     try {
       await fs.rm(SESSION_ROOT, { recursive: true, force: true });
@@ -321,7 +332,6 @@ async function main() {
     }
   }
 
-
   async function spawnSession(id: string, promptPath?: string) {
     const sessionDir = path.join(SESSION_ROOT, id);
     try {
@@ -358,7 +368,6 @@ async function main() {
       const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}${agentsMdContent}${toolsSection}`;
 
 
-
       await fs.mkdir(sessionDir, { recursive: true });
       await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
       await fs.writeFile(path.join(sessionDir, "history.json"), "[]");
@@ -369,11 +378,11 @@ async function main() {
       process.exit(1);
     }
   }
- 
+
   const { options, positional } = parseArgs(process.argv.slice(2));
 
   let finalOutputBuffer = "";
- 
+
   // Custom command detection
   if (positional.length > 0) {
     const firstArg = positional[0];
@@ -383,22 +392,14 @@ async function main() {
       try {
         await fs.access(commandPath);
         options.customCommand = commandName;
-         options.customArgs = positional.slice(1);
-       } catch {
-       console.error(chalk.red(`Custom command not found: /${commandName}`));
-       process.exit(1);
-     }
+        options.customArgs = positional.slice(1);
+      } catch {
+        console.error(chalk.red(`Custom command not found: /${commandName}`));
+        process.exit(1);
+      }
     }
   }
 
-  const registry = new ToolRegistry();
-  registry.register(ReadTool);
-  registry.register(BashTool);
-  registry.register(GlobTool);
-  registry.register(EditTool);
-  registry.register(GrepTool);
-  registry.register(WriteTool);
-  registry.register(ApplyPatchTool);
 
   let allowedTools: string[] | null = null;
   if (options.customCommand) {
@@ -661,6 +662,9 @@ async function main() {
     sessionID: sessionId,
     messageID: crypto.randomUUID(),
     agent: "assistant",
+    extra: {
+      registry,
+    },
   };
 
   let totalPromptTokens = 0;
