@@ -7,7 +7,6 @@ import * as os from "node:os";
 import * as crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import * as dotenv from "dotenv";
 import * as yaml from "js-yaml";
 import chalk from "chalk";
 import ora from "ora";
@@ -25,6 +24,16 @@ import type { ToolContext } from "./packages/tools/index.js";
 
 const COMMANDS_DIR = "prompts/commands";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CONFIG_PATH = path.join(os.homedir(), ".config", "z-code", "config.json");
+
+async function loadConfig() {
+  try {
+    const content = await fs.readFile(CONFIG_PATH, "utf8");
+    return JSON.parse(content);
+  } catch (e) {
+    return {};
+  }
+}
 
 function printHelp() {
   console.log(`
@@ -57,7 +66,7 @@ You can also provide the query via stdin.
 function parseArgs(args: string[]) {
   const options: any = {
     verbosity: 0,
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    model: null,
     promptPath: "prompts/default.md",
     sessionId: null,
     continueSession: false,
@@ -155,8 +164,8 @@ function expandTemplate(content: string, args: string[], argumentsDef: any[] = [
 }
 
 async function main() {
-  dotenv.config({quiet: true});
-  dotenv.config({ path: path.join(os.homedir(), ".env"), quiet: true });
+
+  const config = await loadConfig();
 
   ['SIGINT', 'SIGTERM'].forEach(signal => {
     process.on(signal, () => {
@@ -503,11 +512,13 @@ async function main() {
     }
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = config.gemini_api_key;
   if (!apiKey) {
-    console.error("Missing GEMINI_API_KEY environment variable");
+    console.error(`Missing Gemini API key. Please add it to ${CONFIG_PATH}`);
     process.exit(1);
   }
+
+  const model = options.model || config.gemini_model || "gemini-2.5-flash";
 
   const ai = new GoogleGenAI({
     apiKey: apiKey,
@@ -668,7 +679,7 @@ async function main() {
           thinkingSpinner = ora("Thinking...").start();
         }
         response = await ai.models.generateContent({
-          model: options.model,
+          model: model,
           contents: messages,
           config: {
             tools: tools,
