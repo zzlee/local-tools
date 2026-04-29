@@ -34,10 +34,11 @@ async function loadConfig() {
     return {};
   }
 }
-
 function printHelp() {
   console.log(`
+
 Usage: z-code [options] [query]
+Or: z-code [options] -- [query]
 
 Options:
   -h, --help                Show this help message
@@ -54,6 +55,8 @@ Options:
   --delete-session <id>     Delete a specific session
   --delete-all-sessions     Delete all sessions
   --list-commands           List available custom command templates
+
+Note: Use '--' to separate options from the query if your query contains flags.
 
 Custom Commands:
   /<command> [args...]      Use a custom command template (e.g., /review "some text")
@@ -81,8 +84,31 @@ function parseArgs(args: string[]) {
   };
   const positional: string[] = [];
 
+  const KNOWN_FLAGS = new Set([
+    "-h", "--help",
+    "-v", "--verbose",
+    "-m", "--model",
+    "-p", "--prompt",
+    "-s", "--session",
+    "-c", "--continue",
+    "-f", "--fork",
+    "-o", "--output",
+    "--dry-run",
+    "--list-sessions",
+    "--show-session",
+    "--delete-session",
+    "--delete-all-sessions",
+    "--list-commands"
+  ]);
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+
+    if (arg === "--") {
+      positional.push(...args.slice(i + 1));
+      break;
+    }
+
     if (arg === "-h" || arg === "--help") {
       options.help = true;
     } else if (arg === "-v" || arg === "--verbose") {
@@ -117,6 +143,9 @@ function parseArgs(args: string[]) {
       options.deleteAllSessions = true;
     } else if (arg === "--list-commands") {
       options.listCommands = true;
+    } else if (arg.startsWith("-")) {
+      console.warn(chalk.yellow(`\n⚠️  Warning: Unknown flag '${arg}' detected. It will be treated as part of the query. Use '--' to explicitly mark the start of the query.\n`));
+      positional.push(arg);
     } else {
       positional.push(arg);
     }
