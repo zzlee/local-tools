@@ -66,4 +66,12 @@ export class ToolRegistry {
       parameters: t.parameters
     }));
   }
+
+  filterTools(allowedIds: string[] | null) {
+    return this.listTools().filter(t => {
+      if (!allowedIds) return true;
+      if (allowedIds.includes('*')) return true;
+      return allowedIds.includes(t.id);
+    });
+  }
 }
