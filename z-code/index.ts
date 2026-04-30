@@ -81,6 +81,7 @@ function parseArgs(args: string[]) {
     deleteSessionId: null,
     deleteAllSessions: false,
     listCommands: false,
+    skills: [] as string[],
   };
   const positional: string[] = [];
 
@@ -93,6 +94,7 @@ function parseArgs(args: string[]) {
     "-c", "--continue",
     "-f", "--fork",
     "-o", "--output",
+    "-k", "--skill",
     "--dry-run",
     "--list-sessions",
     "--show-session",
@@ -143,6 +145,8 @@ function parseArgs(args: string[]) {
       options.deleteAllSessions = true;
     } else if (arg === "--list-commands") {
       options.listCommands = true;
+    } else if (arg === "-k" || arg === "--skill") {
+      options.skills.push(args[++i]);
     } else if (arg.startsWith("-")) {
       console.warn(chalk.yellow(`\n⚠️  Warning: Unknown flag '${arg}' detected. It will be treated as part of the query. Use '--' to explicitly mark the start of the query.\n`));
       positional.push(arg);
@@ -163,6 +167,45 @@ async function loadPrompt(filePath: string) {
   const metadata = yaml.load(match[1]) as any;
   const body = match[2].trim();
   return { metadata, body };
+}
+
+async function loadSkill(skillPathOrName: string) {
+  let skillFilePath = skillPathOrName;
+  if (!path.isAbsolute(skillPathOrName)) {
+    // Try to load from ./skills/ directory relative to cwd
+    const localSkillPath = path.join(process.cwd(), "skills", skillPathOrName, "SKILL.md");
+    try {
+      await fs.access(localSkillPath);
+      skillFilePath = localSkillPath;
+    } catch {
+      // If it doesn't exist, try as a direct path
+      skillFilePath = path.resolve(process.cwd(), skillPathOrName);
+      try {
+        const stats = await fs.stat(skillFilePath);
+        if (stats.isDirectory()) {
+          skillFilePath = path.join(skillFilePath, "SKILL.md");
+        }
+      } catch {
+        // Fallback to original
+      }
+    }
+  } else {
+    try {
+      const stats = await fs.stat(skillFilePath);
+      if (stats.isDirectory()) {
+        skillFilePath = path.join(skillFilePath, "SKILL.md");
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  try {
+    const { metadata, body } = await loadPrompt(skillFilePath);
+    return { name: metadata.name || skillPathOrName, description: metadata.description, body };
+  } catch (e: any) {
+    throw new Error(`Failed to load skill '${skillPathOrName}': ${e.message}`);
+  }
 }
 
 async function loadAgentsMd() {
@@ -394,7 +437,23 @@ async function main() {
         
       const agentsMdContent = await loadAgentsMd();
       const toolsSection = toolDescriptions ? `\n\nAvailable Tools:\n${toolDescriptions}` : "";
-      const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}${agentsMdContent}${toolsSection}`;
+
+      let spawnSkillsSection = "";
+      if (options.skills && options.skills.length > 0) {
+        spawnSkillsSection += "\n\n<skills>\n";
+        for (const skillName of options.skills) {
+          const skill = await loadSkill(skillName);
+          spawnSkillsSection += `  <skill name="${skill.name}">\n`;
+          if (skill.description) {
+            spawnSkillsSection += `    <description>${skill.description}</description>\n`;
+          }
+          spawnSkillsSection += `    <instructions>\n${skill.body}\n    </instructions>\n`;
+          spawnSkillsSection += `  </skill>\n`;
+        }
+        spawnSkillsSection += "</skills>\n";
+      }
+
+      const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}${agentsMdContent}${toolsSection}${spawnSkillsSection}`;
 
 
       await fs.mkdir(sessionDir, { recursive: true });
@@ -569,6 +628,21 @@ async function main() {
   let userQuery = "";
   let pipedData = "";
 
+  let skillsSection = "";
+  if (options.skills && options.skills.length > 0) {
+    skillsSection += "\n\n<skills>\n";
+    for (const skillName of options.skills) {
+      const skill = await loadSkill(skillName);
+      skillsSection += `  <skill name="${skill.name}">\n`;
+      if (skill.description) {
+        skillsSection += `    <description>${skill.description}</description>\n`;
+      }
+      skillsSection += `    <instructions>\n${skill.body}\n    </instructions>\n`;
+      skillsSection += `  </skill>\n`;
+    }
+    skillsSection += "</skills>\n";
+  }
+
   if (!process.stdin.isTTY) {
     try {
       const chunks: Buffer[] = [];
@@ -605,7 +679,7 @@ async function main() {
     
     const agentsMdContent = await loadAgentsMd();
     const toolsSection = toolDescriptions ? `\n\nAvailable Tools:\n${toolDescriptions}` : "";
-    systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}${agentsMdContent}${toolsSection}`;
+    systemPrompt = `${expandTemplate(agentBody, agentArgs, agentArgsDef)}${agentsMdContent}${toolsSection}${skillsSection}`;
 
     userQuery = `${expandTemplate(cmdBody, cmdArgs, cmdArgsDef)}\n\n${queryPart}`.trim();
     if (pipedData) {
@@ -628,7 +702,7 @@ async function main() {
     
     const agentsMdContent = await loadAgentsMd();
     const toolsSection = toolDescriptions ? `\n\nAvailable Tools:\n${toolDescriptions}` : "";
-    systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}${agentsMdContent}${toolsSection}`;
+    systemPrompt = `${expandTemplate(defaultBody, [], defaultMetadata.arguments)}${agentsMdContent}${toolsSection}${skillsSection}`;
 
     
     if (pipedData) {
@@ -636,6 +710,14 @@ async function main() {
     }
     if (!userQuery) {
       userQuery = positional.join(" ");
+    }
+
+    if (options.dryRun) {
+      console.log(chalk.bold("\nSystem Prompt:"));
+      console.log(systemPrompt);
+      console.log("\n" + chalk.bold("User Prompt:"));
+      console.log(userQuery);
+      process.exit(0);
     }
   }
 
