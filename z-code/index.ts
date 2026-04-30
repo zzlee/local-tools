@@ -144,8 +144,8 @@ function parseArgs(args: string[]) {
     } else if (arg === "--list-commands") {
       options.listCommands = true;
     } else if (arg.startsWith("-")) {
-      console.warn(chalk.yellow(`\n⚠️  Warning: Unknown flag '${arg}' detected. It will be treated as part of the query. Use '--' to explicitly mark the start of the query.\n`));
-      positional.push(arg);
+      console.error(chalk.red(`\n❌ Error: Unknown flag '${arg}' detected. Use '--' to explicitly mark the start of the query.\n`));
+      process.exit(1);
     } else {
       positional.push(arg);
     }
