@@ -14,6 +14,7 @@ export interface CliOptions {
   deleteSessionId: string | null;
   deleteAllSessions: boolean;
   listCommands: boolean;
+  listSkills: boolean;
   skills: string[];
   help?: boolean;
   customCommand?: string;
@@ -41,6 +42,7 @@ Options:
   --delete-session <id>     Delete a specific session
   --delete-all-sessions     Delete all sessions
   --list-commands           List available custom command templates
+  --list-skills             List available skills
 
 Note: Use '--' to separate options from the query if your query contains flags.
 
@@ -67,6 +69,7 @@ export function parseArgs(args: string[]) {
     deleteSessionId: null,
     deleteAllSessions: false,
     listCommands: false,
+    listSkills: false,
     skills: [] as string[],
   };
   const positional: string[] = [];
@@ -113,6 +116,8 @@ export function parseArgs(args: string[]) {
       options.deleteAllSessions = true;
     } else if (arg === "--list-commands") {
       options.listCommands = true;
+    } else if (arg === "--list-skills") {
+      options.listSkills = true;
     } else if (arg === "-k" || arg === "--skill") {
       options.skills.push(args[++i]);
     } else if (arg.startsWith("-")) {

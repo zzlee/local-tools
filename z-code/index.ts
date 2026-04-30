@@ -11,7 +11,7 @@ import ora from "ora";
 import { ToolRegistry, ReadTool, BashTool, GlobTool, EditTool, GrepTool, WriteTool, ApplyPatchTool, LoadSkillTool, ToolContext } from "./packages/tools/index.js";
 import { loadConfig, CONFIG_PATH } from "./packages/core/config.js";
 import { parseArgs, printHelp } from "./packages/core/cli.js";
-import { loadPrompt, resolvePromptPath, assembleSystemPrompt, expandTemplate } from "./packages/core/prompt.js";
+import { loadPrompt, resolvePromptPath, assembleSystemPrompt, expandTemplate, listSkills } from "./packages/core/prompt.js";
 import { listSessions, deleteSession, deleteAllSessions, showSession, spawnSession, SESSION_ROOT } from "./packages/core/session.js";
 import { AiClient } from "./packages/core/ai.js";
 
@@ -85,6 +85,24 @@ async function main() {
       process.exit(0);
     } catch (e: any) {
       console.error(chalk.red(`Error listing commands: ${e.message}`));
+      process.exit(1);
+    }
+  } else if (options.listSkills) {
+    try {
+      const skills = await listSkills();
+      if (skills.length === 0) {
+        console.log("No skills found in project or global config.");
+      } else {
+        console.log(chalk.bold("\nAvailable Skills:"));
+        console.log("--------------------------------------------------------------------------------");
+        for (const skill of skills) {
+          console.log(`${chalk.cyan(skill.name).padEnd(20)} ${skill.description || "No description"}`);
+        }
+        console.log("--------------------------------------------------------------------------------\n");
+      }
+      process.exit(0);
+    } catch (e: any) {
+      console.error(chalk.red(`Error listing skills: ${e.message}`));
       process.exit(1);
     }
   }

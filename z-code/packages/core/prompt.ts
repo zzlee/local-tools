@@ -75,6 +75,33 @@ export async function loadSkill(skillPathOrName: string): Promise<Skill> {
   );
 }
 
+export async function listSkills(): Promise<Skill[]> {
+  const searchDirs = [
+    path.join(process.cwd(), "skills"),
+    path.join(os.homedir(), ".config", "z-code", "skills"),
+  ];
+
+  const skillsMap = new Map<string, Skill>();
+
+  for (const dir of searchDirs) {
+    try {
+      const entries = await fs.readdir(dir);
+      for (const entry of entries) {
+        try {
+          const skill = await loadSkill(entry);
+          skillsMap.set(skill.name, skill);
+        } catch {
+          // Skip entries that aren't valid skills
+        }
+      }
+    } catch {
+      // Skip directories that don't exist
+    }
+  }
+
+  return Array.from(skillsMap.values());
+}
+
 export async function loadAgentsMd(): Promise<string> {
   try {
     const agentsMdPath = path.join(process.cwd(), "AGENTS.md");
