@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import chalk from "chalk";
 import { ToolRegistry } from "../tools/registry.js";
-import { loadPrompt, loadAgentsMd, loadSkill, expandTemplate } from "./prompt.js";
+import { loadPrompt, loadAgentsMd, loadSkill, expandTemplate, assembleSystemPrompt } from "./prompt.js";
 
 export const SESSION_ROOT = path.join(process.cwd(), ".z-code", "sessions");
 
@@ -185,25 +185,15 @@ export async function spawnSession(id: string, options: any, registry: ToolRegis
       .map(t => `${t.id}: ${t.description}`)
       .join("\n");
       
-    const agentsMdContent = await loadAgentsMd();
     const toolsSection = toolDescriptions ? `\n\nAvailable Tools:\n${toolDescriptions}` : "";
-
-    let spawnSkillsSection = "";
-    if (options.skills && options.skills.length > 0) {
-      spawnSkillsSection += "\n\n<skills>\n";
-      for (const skillName of options.skills) {
-        const skill = await loadSkill(skillName);
-        spawnSkillsSection += `  <skill name="${skill.name}">\n`;
-        if (skill.description) {
-          spawnSkillsSection += `    <description>${skill.description}</description>\n`;
-        }
-        spawnSkillsSection += `    <instructions>\n${skill.body}\n    </instructions>\n`;
-        spawnSkillsSection += `  </skill>\n`;
-      }
-      spawnSkillsSection += "</skills>\n";
-    }
-
-    const systemPrompt = `${expandTemplate(body, [], metadata.arguments)}${agentsMdContent}${toolsSection}${spawnSkillsSection}`;
+    
+    const systemPrompt = await assembleSystemPrompt(
+      options,
+      registry,
+      { metadata, body },
+      [],
+      allowedTools
+    );
 
     await fs.mkdir(sessionDir, { recursive: true });
     await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);

@@ -8,7 +8,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import chalk from "chalk";
 import ora from "ora";
 
-import { ToolRegistry, ReadTool, BashTool, GlobTool, EditTool, GrepTool, WriteTool, ApplyPatchTool, ToolContext } from "./packages/tools/index.js";
+import { ToolRegistry, ReadTool, BashTool, GlobTool, EditTool, GrepTool, WriteTool, ApplyPatchTool, LoadSkillTool, ToolContext } from "./packages/tools/index.js";
 import { loadConfig, CONFIG_PATH } from "./packages/core/config.js";
 import { parseArgs, printHelp } from "./packages/core/cli.js";
 import { loadPrompt, resolvePromptPath, assembleSystemPrompt, expandTemplate } from "./packages/core/prompt.js";
@@ -30,6 +30,8 @@ async function main() {
   registry.register(GrepTool);
   registry.register(WriteTool);
   registry.register(ApplyPatchTool);
+  registry.register(LoadSkillTool);
+
 
   ['SIGINT', 'SIGTERM'].forEach(signal => {
     process.on(signal, async () => {

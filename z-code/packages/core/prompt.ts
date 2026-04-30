@@ -108,8 +108,9 @@ export async function assembleSystemPrompt(
   
   const activeTools = registry.listTools().filter(t => {
     if (!allowedTools) return true;
-    if (allowedTools.includes('*')) return true;
-    return allowedTools.includes(t.id);
+    const toolsList = Array.isArray(allowedTools) ? allowedTools : [allowedTools];
+    if (toolsList.includes('*')) return true;
+    return toolsList.includes(t.id);
   });
 
   const toolDescriptions = activeTools
@@ -120,13 +121,13 @@ export async function assembleSystemPrompt(
   let skillsSection = "";
   if (options.skills && options.skills.length > 0) {
     skillsSection += "\n\n<skills>\n";
+    skillsSection += "Use the `load_skill` tool to retrieve full instructions for a specific skill if you need them.\n";
     for (const skillName of options.skills) {
       const skill = await loadSkill(skillName);
       skillsSection += `  <skill name="${skill.name}">\n`;
       if (skill.description) {
         skillsSection += `    <description>${skill.description}</description>\n`;
       }
-      skillsSection += `    <instructions>\n${skill.body}\n    </instructions>\n`;
       skillsSection += `  </skill>\n`;
     }
     skillsSection += "</skills>\n";
