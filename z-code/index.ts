@@ -240,14 +240,6 @@ async function main() {
     userQuery += `\n\n${pipedData}`;
   }
 
-  if (options.dryRun) {
-    console.log(chalk.bold("\nSystem Prompt:"));
-    console.log(systemPrompt);
-    console.log("\n" + chalk.bold("User Prompt:"));
-    console.log(userQuery);
-    process.exit(0);
-  }
-
   if (!userQuery) {
     if (options.continueSession && options.sessionId) {
       try {
@@ -266,7 +258,7 @@ async function main() {
       }
     }
 
-    if (!userQuery) {
+    if (!userQuery && !options.dryRun) {
       console.error("Please provide a query as a command line argument or via stdin");
       process.exit(1);
     }
@@ -282,6 +274,14 @@ async function main() {
   } else {
     await fs.mkdir(sessionDir, { recursive: true });
     await fs.writeFile(path.join(sessionDir, "system_prompt.txt"), systemPrompt);
+  }
+
+  if (options.dryRun) {
+    console.log(chalk.bold("\nSystem Prompt:"));
+    console.log(systemPrompt);
+    console.log("\n" + chalk.bold("User Prompt:"));
+    console.log(userQuery);
+    process.exit(0);
   }
 
   let messages: any[] = [];
