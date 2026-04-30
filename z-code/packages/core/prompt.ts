@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as os from "node:os";
 import * as yaml from "js-yaml";
 import { CliOptions } from "./cli.js";
 import { ToolRegistry } from "../tools/registry.js";
@@ -34,40 +35,44 @@ export async function loadPrompt(filePath: string): Promise<Prompt> {
 }
 
 export async function loadSkill(skillPathOrName: string): Promise<Skill> {
-  let skillFilePath = skillPathOrName;
-  if (!path.isAbsolute(skillPathOrName)) {
-    const localSkillPath = path.join(process.cwd(), "skills", skillPathOrName, "SKILL.md");
-    try {
-      await fs.access(localSkillPath);
-      skillFilePath = localSkillPath;
-    } catch {
-      skillFilePath = path.resolve(process.cwd(), skillPathOrName);
-      try {
-        const stats = await fs.stat(skillFilePath);
-        if (stats.isDirectory()) {
-          skillFilePath = path.join(skillFilePath, "SKILL.md");
-        }
-      } catch {
-        // Fallback
-      }
-    }
+  const candidates: string[] = [];
+
+  if (path.isAbsolute(skillPathOrName)) {
+    candidates.push(skillPathOrName);
   } else {
+    // 1. Local Project: skills/<name>/SKILL.md
+    candidates.push(path.join(process.cwd(), "skills", skillPathOrName));
+    // 2. Local Project: <name>/SKILL.md
+    candidates.push(path.join(process.cwd(), skillPathOrName));
+    // 3. Global Config: ~/.config/z-code/skills/<name>/SKILL.md
+    candidates.push(path.join(os.homedir(), ".config", "z-code", "skills", skillPathOrName));
+  }
+
+  for (const candidate of candidates) {
     try {
-      const stats = await fs.stat(skillFilePath);
+      const stats = await fs.stat(candidate);
       if (stats.isDirectory()) {
-        skillFilePath = path.join(skillFilePath, "SKILL.md");
+        const skillFile = path.join(candidate, "SKILL.md");
+        try {
+          await fs.access(skillFile);
+          const { metadata, body } = await loadPrompt(skillFile);
+          return { name: metadata.name || skillPathOrName, description: metadata.description, body };
+        } catch {
+          // Directory exists but SKILL.md doesn't
+        }
+      } else if (stats.isFile()) {
+        const { metadata, body } = await loadPrompt(candidate);
+        return { name: metadata.name || skillPathOrName, description: metadata.description, body };
       }
     } catch {
-      // Fallback
+      // Candidate path doesn't exist
     }
   }
 
-  try {
-    const { metadata, body } = await loadPrompt(skillFilePath);
-    return { name: metadata.name || skillPathOrName, description: metadata.description, body };
-  } catch (e: any) {
-    throw new Error(`Failed to load skill '${skillPathOrName}': ${e.message}`);
-  }
+  throw new Error(
+    `Failed to locate skill '${skillPathOrName}'. Checked paths:\n` +
+    candidates.map(c => `- ${c}`).join("\n")
+  );
 }
 
 export async function loadAgentsMd(): Promise<string> {
