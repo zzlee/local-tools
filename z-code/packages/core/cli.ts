@@ -34,7 +34,7 @@ Options:
   -f, --fork                Pre-spawn the session with the system prompt
   -o, --output <path>       Save the final cleaned output to a file
   -c, --continue            Resume the last session or create a new one:
-  -k, --skill <skill>        Enable a specific skill (can be used multiple times)
+  -k, --skill <skill>       Enable a specific skill (can be used multiple times)
   --dry-run                 Show expanded prompt for custom commands without executing
   --list-sessions           List all sessions
   --show-session <id>       Show history of a specific session
