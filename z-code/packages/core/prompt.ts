@@ -16,7 +16,10 @@ export interface Skill {
   body: string;
 }
 
-export function resolvePromptPath(promptPath: string, baseDir: string): string {
+export function resolvePromptPath(promptPath: string | undefined, baseDir: string): string {
+  if (!promptPath) {
+    return path.join(baseDir, "prompts/default.md");
+  }
   if (promptPath.startsWith("/") || path.isAbsolute(promptPath)) {
     return promptPath;
   }

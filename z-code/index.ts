@@ -10,7 +10,7 @@ import ora from "ora";
 
 import { ToolRegistry, ReadTool, BashTool, GlobTool, EditTool, GrepTool, WriteTool, ApplyPatchTool, LoadSkillTool, ToolContext } from "./packages/tools/index.js";
 import { loadConfig, CONFIG_PATH } from "./packages/core/config.js";
-import { parseArgs, printHelp } from "./packages/core/cli.js";
+import { createProgram } from "./packages/core/cli.js";
 import { loadPrompt, resolvePromptPath, assembleSystemPrompt, expandTemplate, listSkills } from "./packages/core/prompt.js";
 import { listSessions, deleteSession, deleteAllSessions, showSession, spawnSession, SESSION_ROOT } from "./packages/core/session.js";
 import { AiClient } from "./packages/core/ai.js";
@@ -20,7 +20,10 @@ const COMMANDS_DIR = "prompts/commands";
 
 async function main() {
   const config = await loadConfig();
-  const { options, positional } = parseArgs(process.argv.slice(2));
+  const program = createProgram();
+  program.parse(process.argv);
+  const options = program.opts() as any;
+  const positional = program.args;
 
   const registry = new ToolRegistry();
   registry.register(ReadTool);
@@ -41,11 +44,6 @@ async function main() {
       process.exit(0);
     });
   });
-
-  if (options.help) {
-    printHelp();
-    process.exit(0);
-  }
 
   if (options.listSessions) {
     await listSessions();
