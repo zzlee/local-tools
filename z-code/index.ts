@@ -291,7 +291,7 @@ async function main() {
       // ignore
     }
   }
-  messages.push({ role: "user", parts: [{ text: userQuery }] });
+  messages.push({ role: "user", content: userQuery });
 
   const ctx: ToolContext = {
     sessionID: sessionId,

@@ -1,4 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { generateText, tool } from "ai";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import ora from "ora";
@@ -7,22 +8,31 @@ import { ToolRegistry } from "../tools/registry.js";
 import { ToolContext } from "../tools/index.js";
 import { CliOptions } from "./cli.js";
 
+export type Message = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | any[];
+  toolCalls?: any[];
+};
+
 export class AiClient {
-  private ai: GoogleGenAI;
+  private google: ReturnType<typeof createGoogleGenerativeAI>;
   private modelName: string;
   private totalPromptTokens = 0;
   private totalCandidatesTokens = 0;
   private totalTokens = 0;
 
   constructor(apiKey: string, modelName: string) {
-    this.ai = new GoogleGenAI({ apiKey });
+    this.google = createGoogleGenerativeAI({
+      apiKey,
+      ...(process.env.GEMINI_BASE_URL ? { baseURL: process.env.GEMINI_BASE_URL } : {})
+    });
     this.modelName = modelName;
   }
 
   async generateResponse(
-    messages: any[], 
+    messages: Message[],
     systemPrompt: string, 
-    tools: any[], 
+    activeTools: any[],
     options: CliOptions,
     ctx: ToolContext,
     sessionDir: string,
@@ -32,8 +42,16 @@ export class AiClient {
     let finalOutputBuffer = "";
     let messagesCopy = [...messages];
 
+    const vTools: Record<string, any> = {};
+    for (const t of activeTools) {
+      vTools[t.id] = {
+        description: t.description,
+        parameters: t.parameters as any
+      };
+    }
+
     while (true) {
-      let response;
+      let response: any;
       let retries = 0;
       const maxRetries = 3;
 
@@ -44,21 +62,19 @@ export class AiClient {
             thinkingSpinner = ora("Thinking...").start();
           }
           
-          response = await this.ai.models.generateContent({
-            model: this.modelName,
-            contents: messagesCopy,
-            config: {
-              tools: tools,
-              systemInstruction: { parts: [{ text: systemPrompt }] }
-            }
+          response = await generateText({
+            model: this.google(this.modelName),
+            messages: messagesCopy as any,
+            system: systemPrompt,
+            tools: vTools
           });
 
           if (thinkingSpinner) thinkingSpinner.stop();
           
-          if (response.usageMetadata) {
-            this.totalPromptTokens += response.usageMetadata.promptTokenCount || 0;
-            this.totalCandidatesTokens += response.usageMetadata.candidatesTokenCount || 0;
-            this.totalTokens += response.usageMetadata.totalTokenCount || 0;
+          if (response.usage) {
+            this.totalPromptTokens += response.usage.promptTokens || 0;
+            this.totalCandidatesTokens += response.usage.completionTokens || 0;
+            this.totalTokens += response.usage.totalTokens || 0;
           }
           break;
         } catch (e: any) {
@@ -84,38 +100,48 @@ export class AiClient {
         }
       }
 
-      const message = response.candidates![0].content!;
-      messagesCopy.push(message);
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: []
+      };
+
+      if (response.text) {
+        (assistantMessage.content as any[]).push({ type: "text", text: response.text });
+      }
+
+      const toolCalls = response.toolCalls || [];
+      for (const tc of toolCalls) {
+        (assistantMessage.content as any[]).push({
+          type: "tool-call",
+          toolCallId: tc.toolCallId,
+          toolName: tc.toolName,
+          args: tc.args
+        });
+      }
+
+      messagesCopy.push(assistantMessage);
       await fs.writeFile(path.join(sessionDir, "history.json"), JSON.stringify(messagesCopy, null, 2));
 
-      const toolCalls = response.functionCalls || [];
-
-      for (const part of message.parts || []) {
-        if (part.text) {
-          if (toolCalls.length === 0 && !part.thought) {
-            finalOutputBuffer += part.text + "\n";
-            onFinalOutput(part.text);
-          }
-          if (part.thought) {
-            if (options.verbosity > 0) {
-              console.log(chalk.gray(part.text));
-            }
-          } else if (toolCalls.length > 0) {
-            console.log(chalk.yellow(part.text));
-          } else {
-            console.log(part.text);
-          }
+      if (response.text) {
+        if (toolCalls.length === 0) {
+          finalOutputBuffer += response.text + "\n";
+          onFinalOutput(response.text);
+        }
+        if (toolCalls.length > 0) {
+          console.log(chalk.yellow(response.text));
+        } else {
+          console.log(response.text);
         }
       }
 
-      if (!toolCalls || toolCalls.length === 0) {
+      if (toolCalls.length === 0) {
         break;
       }
 
       const functionResponseParts: any[] = [];
 
       for (const toolCall of toolCalls) {
-        const toolId = toolCall.name!;
+        const toolId = toolCall.toolName;
         const args = toolCall.args || {};
         
         const spinner = ora(`Executing ${chalk.cyan(toolId)}...`).start();
@@ -127,10 +153,10 @@ export class AiClient {
           }
           
           functionResponseParts.push({
-            functionResponse: {
-              name: toolId,
-              response: { output: result.output }
-            }
+            type: "tool-result",
+            toolCallId: toolCall.toolCallId,
+            toolName: toolId,
+            result: result.output
           });
         } catch (e: any) {
           if (spinner) spinner.fail(`Error executing ${chalk.cyan(toolId)}`);
@@ -139,18 +165,19 @@ export class AiClient {
           }
           
           functionResponseParts.push({
-            functionResponse: {
-              name: toolId,
-              response: { error: e.message }
-            }
+            type: "tool-result",
+            toolCallId: toolCall.toolCallId,
+            toolName: toolId,
+            isError: true,
+            result: e.message
           });
         }
       }
 
       if (functionResponseParts.length > 0) {
         messagesCopy.push({
-          role: "user",
-          parts: functionResponseParts,
+          role: "tool",
+          content: functionResponseParts,
         });
         await fs.writeFile(path.join(sessionDir, "history.json"), JSON.stringify(messagesCopy, null, 2));
       }
