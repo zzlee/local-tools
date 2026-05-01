@@ -32,7 +32,7 @@ export function createProgram() {
     .arguments('[query...]');
 
   program
-    .option("-v, --verbose [level]", "Set verbosity level (0: thinking and tool progress, 1: tool progress, 2: tool output)", (value, prev) => {
+    .option("-v, --verbosity [level]", "Set verbosity level (0: thinking and tool progress, 1: tool progress, 2: tool output)", (value, prev) => {
       if (value === undefined) return 1;
       const parsed = parseInt(value, 10);
       return isNaN(parsed) ? 1 : parsed;
